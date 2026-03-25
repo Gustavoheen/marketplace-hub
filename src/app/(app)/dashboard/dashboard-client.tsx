@@ -1,17 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AreaChart, Area, BarChart, Bar,
   PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer,
 } from 'recharts'
 import {
-  TrendingUp, TrendingDown, ShoppingCart, Package,
+  TrendingUp, ShoppingCart, Package,
   Percent, Plug, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  RefreshCw, Filter,
+  RefreshCw, Filter, Database,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -207,6 +207,29 @@ function EmptyChart({ message }: { message: string }) {
 export function DashboardClient() {
   const [period, setPeriod] = useState('30d')
   const [marketplace, setMarketplace] = useState('all')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const res = await fetch('/api/integracoes/bling/sync-all', { method: 'POST' })
+      const json = await res.json()
+      if (json.error) {
+        setSyncMsg(`Erro: ${json.error}`)
+      } else {
+        setSyncMsg(`✓ ${json.produtos} produtos · ${json.pedidos} pedidos sincronizados`)
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      }
+    } catch {
+      setSyncMsg('Erro ao conectar com o servidor')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(null), 6000)
+    }
+  }
 
   const { data, isLoading, refetch, isFetching } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats', period, marketplace],
@@ -275,15 +298,47 @@ export function DashboardClient() {
           </select>
         </div>
 
-        <button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-opacity hover:opacity-80"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          Atualizar
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {/* Sync Bling */}
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all hover:opacity-90"
+            style={{
+              background: syncing ? 'rgba(6,200,217,0.06)' : 'rgba(6,200,217,0.1)',
+              border: '1px solid rgba(6,200,217,0.25)',
+              color: 'var(--cyan)',
+            }}
+          >
+            <Database className={`h-3.5 w-3.5 ${syncing ? 'animate-pulse' : ''}`} />
+            <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sync Bling'}</span>
+          </button>
+
+          {/* Refresh */}
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-opacity hover:opacity-80"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Atualizar</span>
+          </button>
+        </div>
+
+        {/* Sync feedback */}
+        {syncMsg && (
+          <div
+            className="w-full rounded-lg px-3 py-2 text-[12px] font-medium"
+            style={{
+              background: syncMsg.startsWith('Erro') ? 'rgba(248,113,113,0.08)' : 'rgba(16,212,138,0.08)',
+              border: `1px solid ${syncMsg.startsWith('Erro') ? 'rgba(248,113,113,0.2)' : 'rgba(16,212,138,0.2)'}`,
+              color: syncMsg.startsWith('Erro') ? '#F87171' : 'var(--emerald)',
+            }}
+          >
+            {syncMsg}
+          </div>
+        )}
       </div>
 
       {/* ── KPI Grid ── */}
