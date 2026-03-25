@@ -233,6 +233,10 @@ export async function blingGetPedidos(token: string, params: Record<string, stri
   return blingFetch<any>(`/pedidos/vendas?${query}`, token)
 }
 
+export async function blingGetPedidoDetalhe(token: string, id: string | number) {
+  return blingFetch<any>(`/pedidos/vendas/${id}`, token)
+}
+
 export async function blingGetTodosPedidos(
   token: string,
   dataInicial?: string,

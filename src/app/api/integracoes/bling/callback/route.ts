@@ -78,19 +78,7 @@ async function syncBlingData(tenantId: string, accessToken: string) {
     const pedidos = await blingGetTodosPedidos(accessToken)
     if (pedidos.length) {
       for (let i = 0; i < pedidos.length; i += 50) {
-        const batch = pedidos.slice(i, i + 50).map((p: any) => ({
-          tenant_id: tenantId,
-          source: 'bling',
-          bling_id: String(p.id),
-          marketplace: p.canal_venda || 'bling',
-          status: p.situacao?.value || 'unknown',
-          total_amount: Number(p.total || 0),
-          items_count: p.itens?.length || 0,
-          customer_name: p.contato?.nome || null,
-          raw_data: p,
-          order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
-          synced_at: new Date().toISOString(),
-        }))
+        const batch = pedidos.slice(i, i + 50).map((p: any) => mapBlingOrderRow(tenantId, p))
         await svc
           .schema('marketplace')
           .from('orders')
@@ -100,5 +88,47 @@ async function syncBlingData(tenantId: string, accessToken: string) {
     }
   } catch (err) {
     console.error('[bling/sync] erro pedidos:', err)
+  }
+}
+
+function mapBlingOrderRow(tenantId: string, p: any) {
+  const itemsDetail = Array.isArray(p.itens)
+    ? p.itens.map((item: any) => ({
+        sku: item.codigo || item.sku || null,
+        nome: item.descricao || item.nome || null,
+        quantidade: Number(item.quantidade || 1),
+        valor: Number(item.valor || 0),
+        total: Number(item.valor || 0) * Number(item.quantidade || 1),
+      }))
+    : []
+
+  const shippingCarrier =
+    p.transporte?.transportador?.nome ||
+    p.transporte?.transportadora?.nome ||
+    null
+
+  const shippingCost = p.fretePorConta === 'R'
+    ? Number(p.transporte?.frete || 0)
+    : Number(p.transporte?.frete || 0)
+
+  return {
+    tenant_id: tenantId,
+    source: 'bling',
+    bling_id: String(p.id),
+    marketplace: p.canal_venda || 'bling',
+    status: p.situacao?.value || 'unknown',
+    total_amount: Number(p.total || 0),
+    items_count: p.itens?.length || 0,
+    customer_name: p.contato?.nome || null,
+    raw_data: p,
+    order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
+    synced_at: new Date().toISOString(),
+    // Extended fields
+    order_number: p.numero ? String(p.numero) : null,
+    customer_state: p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null,
+    shipping_carrier: shippingCarrier,
+    shipping_cost: shippingCost || null,
+    discount_total: Number(p.desconto?.valor || 0) || null,
+    items_detail: itemsDetail,
   }
 }

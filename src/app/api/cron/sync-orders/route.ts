@@ -53,19 +53,7 @@ export async function GET(request: NextRequest) {
 
       // Upsert orders em batches de 50 — usando schema existente
       for (let i = 0; i < pedidos.length; i += 50) {
-        const batch = pedidos.slice(i, i + 50).map((p: any) => ({
-          tenant_id: tenantId,
-          source: 'bling',
-          bling_id: String(p.id),
-          marketplace: p.canal_venda || 'bling',
-          status: p.situacao?.value || 'unknown',
-          total_amount: Number(p.total || 0),
-          items_count: p.itens?.length || 0,
-          customer_name: p.contato?.nome || null,
-          raw_data: p,
-          order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
-          synced_at: new Date().toISOString(),
-        }))
+        const batch = pedidos.slice(i, i + 50).map((p: any) => mapBlingOrderRow(tenantId, p))
 
         await svc
           .schema('marketplace')
@@ -84,4 +72,36 @@ export async function GET(request: NextRequest) {
     tenantsProcessed: connections.length,
     totalOrders,
   })
+}
+
+function mapBlingOrderRow(tenantId: string, p: any) {
+  const itemsDetail = Array.isArray(p.itens)
+    ? p.itens.map((item: any) => ({
+        sku: item.codigo || null,
+        nome: item.descricao || null,
+        quantidade: Number(item.quantidade || 1),
+        valor: Number(item.valor || 0),
+        total: Number(item.valor || 0) * Number(item.quantidade || 1),
+      }))
+    : []
+
+  return {
+    tenant_id: tenantId,
+    source: 'bling',
+    bling_id: String(p.id),
+    order_number: p.numero ? String(p.numero) : null,
+    marketplace: p.canal_venda || 'bling',
+    status: p.situacao?.value || 'unknown',
+    total_amount: Number(p.total || 0),
+    items_count: p.itens?.length || 0,
+    items_detail: itemsDetail,
+    customer_name: p.contato?.nome || null,
+    customer_state: p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null,
+    shipping_carrier: p.transporte?.transportador?.nome || p.transporte?.transportadora?.nome || null,
+    shipping_cost: Number(p.transporte?.frete || 0) || null,
+    discount_total: Number(p.desconto?.valor || 0) || null,
+    raw_data: p,
+    order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
+    synced_at: new Date().toISOString(),
+  }
 }

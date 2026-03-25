@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { getUserWithTenant } from '@/lib/db/queries/tenants'
 import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest) {
@@ -12,9 +13,15 @@ export async function GET(request: NextRequest) {
   const period = searchParams.get('period') || '30d'
   const marketplace = searchParams.get('marketplace') || 'all'
 
+  // Resolve tenant — cookie first, fallback to DB lookup
   const cookieStore = await cookies()
-  const tenantId = cookieStore.get('active_tenant_id')?.value
-  if (!tenantId) return NextResponse.json({ error: 'No active tenant' }, { status: 400 })
+  let tenantId = cookieStore.get('active_tenant_id')?.value
+
+  if (!tenantId) {
+    const result = await getUserWithTenant(user.id)
+    if (!result) return NextResponse.json({ error: 'No active tenant' }, { status: 400 })
+    tenantId = result.tenant.id
+  }
 
   const svc = createServiceClient()
 
@@ -45,7 +52,7 @@ export async function GET(request: NextRequest) {
   ] = await Promise.all([
     ordersQuery,
     svc.schema('marketplace').from('products')
-      .select('id, bling_price, cost_price, stock')
+      .select('id, sale_price, cost_price, stock_total')
       .eq('tenant_id', tenantId),
     svc.schema('marketplace').from('marketplace_connections')
       .select('marketplace, status')
@@ -67,10 +74,13 @@ export async function GET(request: NextRequest) {
   const totalOrders = safeOrders.length
   const activeConnections = (connections || []).length
 
-  const productsWithCost = safeProducts.filter(p => p.cost_price && p.bling_price)
+  // Margem média: usa sale_price e cost_price
+  const productsWithCost = safeProducts.filter(
+    (p) => p.cost_price != null && p.sale_price != null && Number(p.sale_price) > 0
+  )
   const avgMargin = productsWithCost.length
     ? productsWithCost.reduce((s, p) => {
-        const m = ((Number(p.bling_price) - Number(p.cost_price)) / Number(p.bling_price)) * 100
+        const m = ((Number(p.sale_price) - Number(p.cost_price)) / Number(p.sale_price)) * 100
         return s + m
       }, 0) / productsWithCost.length
     : null
@@ -146,7 +156,7 @@ export async function GET(request: NextRequest) {
     pendingAlerts: (alerts || []).length,
     products: {
       total: safeProducts.length,
-      lowStock: safeProducts.filter(p => Number(p.stock || 0) < 5).length,
+      lowStock: safeProducts.filter(p => Number(p.stock_total || 0) < 5).length,
     },
   })
 }
