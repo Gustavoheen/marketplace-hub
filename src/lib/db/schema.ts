@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgSchema,
   uuid,
   text,
   timestamp,
@@ -14,23 +15,27 @@ import {
 import { relations } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 
+// ─── Schema PostgreSQL separado ──────────────────────────────────────────────
+
+const mkt = pgSchema('marketplace')
+
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export const taxRegimeEnum = pgEnum('tax_regime', [
+export const taxRegimeEnum = mkt.enum('tax_regime', [
   'simples_nacional',
   'lucro_presumido',
   'lucro_real',
 ])
 
-export const userRoleEnum = pgEnum('user_role', ['admin', 'analyst', 'viewer'])
+export const userRoleEnum = mkt.enum('user_role', ['admin', 'analyst', 'viewer'])
 
-export const connectionStatusEnum = pgEnum('connection_status', [
+export const connectionStatusEnum = mkt.enum('connection_status', [
   'active',
   'expired',
   'disconnected',
 ])
 
-export const marketplaceEnum = pgEnum('marketplace', [
+export const marketplaceEnum = mkt.enum('marketplace_name', [
   'bling',
   'mercadolivre',
   'shopee',
@@ -44,7 +49,7 @@ export const marketplaceEnum = pgEnum('marketplace', [
 
 // ─── Tenants ─────────────────────────────────────────────────────────────────
 
-export const tenants = pgTable(
+export const tenants = mkt.table(
   'tenants',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -60,7 +65,7 @@ export const tenants = pgTable(
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
-export const users = pgTable(
+export const users = mkt.table(
   'users',
   {
     id: uuid('id').primaryKey(), // referencia auth.users(id) do Supabase
@@ -77,7 +82,7 @@ export const users = pgTable(
 
 // ─── Marketplace Connections ─────────────────────────────────────────────────
 
-export const marketplaceConnections = pgTable(
+export const marketplaceConnections = mkt.table(
   'marketplace_connections',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -101,7 +106,7 @@ export const marketplaceConnections = pgTable(
 
 // ─── Products ────────────────────────────────────────────────────────────────
 
-export const products = pgTable(
+export const products = mkt.table(
   'products',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -140,7 +145,7 @@ export const products = pgTable(
 
 // ─── Product Listings ────────────────────────────────────────────────────────
 
-export const productListings = pgTable(
+export const productListings = mkt.table(
   'product_listings',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -169,7 +174,7 @@ export const productListings = pgTable(
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
 
-export const orders = pgTable(
+export const orders = mkt.table(
   'orders',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -202,7 +207,7 @@ export const orders = pgTable(
 
 // ─── Shared Dashboards ───────────────────────────────────────────────────────
 
-export const sharedDashboards = pgTable(
+export const sharedDashboards = mkt.table(
   'shared_dashboards',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -227,7 +232,7 @@ export const sharedDashboards = pgTable(
 
 // ─── Audit Logs ──────────────────────────────────────────────────────────────
 
-export const auditLogs = pgTable(
+export const auditLogs = mkt.table(
   'audit_logs',
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
