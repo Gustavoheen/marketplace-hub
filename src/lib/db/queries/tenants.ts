@@ -8,24 +8,24 @@ export async function getUserTenants(userId: string) {
   const { data: memberships } = await supabase
     .schema('marketplace')
     .from('user_tenant_memberships')
-    .select('role, tenants:tenant_id(id, name, slug, plan)')
+    .select('role, tenants:tenant_id(id, name, slug)')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
 
   if (memberships?.length) {
-    return memberships.map((m: any) => ({ role: m.role, ...m.tenants }))
+    return memberships.map((m: any) => ({ role: m.role, plan: 'pro', ...m.tenants }))
   }
 
   // Fallback legacy: users.tenant_id
   const { data: user } = await supabase
     .schema('marketplace')
     .from('users')
-    .select('role, tenant:tenant_id(id, name, slug, plan)')
+    .select('role, tenant:tenant_id(id, name, slug)')
     .eq('id', userId)
     .single()
 
   if (!user?.tenant) return []
-  return [{ role: user.role, ...(user.tenant as any) }]
+  return [{ role: user.role, plan: 'pro', ...(user.tenant as any) }]
 }
 
 export async function getUserWithTenant(userId: string) {
