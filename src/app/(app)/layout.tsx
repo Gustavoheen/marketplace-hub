@@ -1,21 +1,21 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getUserWithTenant } from '@/lib/db/queries/tenants'
+import { getUserWithTenant, getUserTenants } from '@/lib/db/queries/tenants'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TenantProvider } from '@/components/layout/tenant-provider'
-import type { Tenant, User } from '@/types'
+import type { Tenant, TenantUser as User } from '@/types'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
 
   if (!authUser) redirect('/login')
 
-  const result = await getUserWithTenant(authUser.id)
+  const [result, allTenants] = await Promise.all([
+    getUserWithTenant(authUser.id),
+    getUserTenants(authUser.id),
+  ])
 
-  // Usuário autenticado mas sem tenant (pode acontecer em signup sem confirmação de email)
   if (!result) {
     return (
       <div className="min-h-screen flex items-center justify-center text-center p-8">
@@ -29,19 +29,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     )
   }
 
-  const tenant: Tenant = {
-    ...result.tenant,
-    taxRegime: result.tenant.taxRegime ?? null,
-    effectiveTaxRate: result.tenant.effectiveTaxRate ?? null,
-  }
-
-  const user: User = result.user
+  const tenant = result.tenant as unknown as Tenant
+  const user = result.user as unknown as User
 
   return (
     <TenantProvider tenant={tenant} user={user}>
       <div className="flex h-screen overflow-hidden">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <Sidebar allTenants={allTenants} />
+        <main className="flex-1 overflow-hidden">{children}</main>
       </div>
     </TenantProvider>
   )

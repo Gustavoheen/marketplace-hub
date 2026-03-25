@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { encrypt, decrypt } from '@/lib/encryption'
-import type { Marketplace, MarketplaceConnection, ConnectionStatus } from '@/types'
+import type { Marketplace, ConnectionStatus } from '@/types'
 
 const TABLE = 'marketplace_connections'
 

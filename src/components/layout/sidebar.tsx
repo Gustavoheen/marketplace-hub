@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTenant } from '@/hooks/use-tenant'
+import { TenantSwitcher } from './tenant-switcher'
 
 const navGroups = [
   {
@@ -43,7 +44,7 @@ const navGroups = [
   },
 ]
 
-export function Sidebar() {
+export function Sidebar({ allTenants = [] }: { allTenants?: Array<{ id: string; name: string; slug: string; plan: string; role: string }> }) {
   const pathname = usePathname()
   const router = useRouter()
   const { tenant, user } = useTenant()
@@ -91,25 +92,11 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Tenant badge */}
-      <div className="mx-3 my-2 rounded-md px-3 py-2" style={{ background: 'rgba(6,200,217,0.06)', border: '1px solid rgba(6,200,217,0.12)' }}>
-        <div className="flex items-center gap-2">
-          <div
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[10px] font-bold"
-            style={{ background: 'rgba(6,200,217,0.15)', color: 'var(--cyan)', fontFamily: 'var(--font-syne)' }}
-          >
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium truncate" style={{ color: '#E8EDF5' }}>
-              {tenant.name}
-            </p>
-            <p className="text-[10px] truncate" style={{ color: 'var(--muted-foreground)' }}>
-              {user.role}
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* Tenant switcher */}
+      <TenantSwitcher
+        current={{ id: (tenant as any).id || '', name: tenant.name }}
+        tenants={allTenants.length > 0 ? allTenants : [{ id: (tenant as any).id || '', name: tenant.name, slug: (tenant as any).slug || '', plan: (tenant as any).plan || 'free', role: user.role }]}
+      />
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-3">

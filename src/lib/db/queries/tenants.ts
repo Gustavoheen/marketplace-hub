@@ -1,5 +1,33 @@
 import { createServiceClient } from '@/lib/supabase/service'
 
+// Busca todos os tenants a que o usuário tem acesso
+export async function getUserTenants(userId: string) {
+  const supabase = createServiceClient()
+
+  // Via memberships (multi-tenant)
+  const { data: memberships } = await supabase
+    .schema('marketplace')
+    .from('user_tenant_memberships')
+    .select('role, tenants:tenant_id(id, name, slug, plan)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+
+  if (memberships?.length) {
+    return memberships.map((m: any) => ({ role: m.role, ...m.tenants }))
+  }
+
+  // Fallback legacy: users.tenant_id
+  const { data: user } = await supabase
+    .schema('marketplace')
+    .from('users')
+    .select('role, tenant:tenant_id(id, name, slug, plan)')
+    .eq('id', userId)
+    .single()
+
+  if (!user?.tenant) return []
+  return [{ role: user.role, ...(user.tenant as any) }]
+}
+
 export async function getUserWithTenant(userId: string) {
   const supabase = createServiceClient()
 

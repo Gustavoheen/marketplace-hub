@@ -1,7 +1,7 @@
 'use client'
 
 import { TenantContext } from '@/hooks/use-tenant'
-import type { Tenant, User } from '@/types'
+import type { Tenant, TenantUser as User } from '@/types'
 
 interface TenantProviderProps {
   tenant: Tenant

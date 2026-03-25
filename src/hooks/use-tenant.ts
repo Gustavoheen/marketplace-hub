@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import type { Tenant, User } from '@/types'
+import type { Tenant, TenantUser as User } from '@/types'
 
 interface TenantContextValue {
   tenant: Tenant
