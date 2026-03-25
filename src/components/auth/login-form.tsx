@@ -3,11 +3,8 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import Link from 'next/link'
+import { AlertCircle, ArrowRight, Loader2 } from 'lucide-react'
 
 export function LoginForm() {
   const router = useRouter()
@@ -38,50 +35,108 @@ export function LoginForm() {
   }
 
   return (
-    <Card>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="pt-6 space-y-4">
-          {error && (
-            <div className="rounded-md bg-destructive/10 text-destructive text-sm px-3 py-2">
-              {error}
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-3">
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </Button>
-          <p className="text-sm text-muted-foreground text-center">
-            Não tem conta?{' '}
-            <Link href="/registro" className="underline underline-offset-4 hover:text-foreground">
-              Criar conta
-            </Link>
-          </p>
-        </CardFooter>
-      </form>
-    </Card>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-4 py-3 text-[13px]"
+          style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)', color: 'var(--rose)' }}
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium" style={{ color: 'var(--muted-foreground)' }}>
+          Email
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="seu@email.com"
+          required
+          autoFocus
+          className="w-full rounded-lg px-4 py-2.5 text-[13px] outline-none transition-all"
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--sidebar-border)',
+            color: '#E8EDF5',
+          }}
+          onFocus={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = 'rgba(6,200,217,0.5)'
+            ;(e.target as HTMLInputElement).style.boxShadow = '0 0 0 3px rgba(6,200,217,0.06)'
+          }}
+          onBlur={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = 'var(--sidebar-border)'
+            ;(e.target as HTMLInputElement).style.boxShadow = 'none'
+          }}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[12px] font-medium" style={{ color: 'var(--muted-foreground)' }}>
+          Senha
+        </label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+          className="w-full rounded-lg px-4 py-2.5 text-[13px] outline-none transition-all"
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--sidebar-border)',
+            color: '#E8EDF5',
+          }}
+          onFocus={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = 'rgba(6,200,217,0.5)'
+            ;(e.target as HTMLInputElement).style.boxShadow = '0 0 0 3px rgba(6,200,217,0.06)'
+          }}
+          onBlur={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = 'var(--sidebar-border)'
+            ;(e.target as HTMLInputElement).style.boxShadow = 'none'
+          }}
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-[13px] font-semibold transition-all disabled:opacity-60"
+        style={{
+          background: 'linear-gradient(135deg, #06C8D9 0%, #0891B2 100%)',
+          color: '#07090F',
+          boxShadow: loading ? 'none' : '0 0 20px rgba(6,200,217,0.25)',
+        }}
+        onMouseEnter={(e) => {
+          if (!loading) (e.currentTarget as HTMLElement).style.boxShadow = '0 0 30px rgba(6,200,217,0.4)'
+        }}
+        onMouseLeave={(e) => {
+          if (!loading) (e.currentTarget as HTMLElement).style.boxShadow = '0 0 20px rgba(6,200,217,0.25)'
+        }}
+      >
+        {loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <>
+            Entrar
+            <ArrowRight className="h-4 w-4" />
+          </>
+        )}
+      </button>
+
+      <p className="text-center text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+        Não tem conta?{' '}
+        <Link
+          href="/registro"
+          className="font-medium transition-colors hover:underline underline-offset-4"
+          style={{ color: 'var(--cyan)' }}
+        >
+          Criar conta
+        </Link>
+      </p>
+    </form>
   )
 }
