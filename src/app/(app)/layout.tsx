@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserWithTenant, getUserTenants } from '@/lib/db/queries/tenants'
 import { Sidebar } from '@/components/layout/sidebar'
 import { TenantProvider } from '@/components/layout/tenant-provider'
+import { QueryProvider } from '@/components/providers/query-provider'
 import type { Tenant, TenantUser as User } from '@/types'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -33,11 +34,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = result.user as unknown as User
 
   return (
-    <TenantProvider tenant={tenant} user={user}>
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar allTenants={allTenants} />
-        <main className="flex-1 overflow-hidden">{children}</main>
-      </div>
-    </TenantProvider>
+    <QueryProvider>
+      <TenantProvider tenant={tenant} user={user}>
+        <div className="flex h-screen overflow-hidden">
+          <Sidebar allTenants={allTenants} />
+          <main className="flex-1 overflow-hidden">{children}</main>
+        </div>
+      </TenantProvider>
+    </QueryProvider>
   )
 }
