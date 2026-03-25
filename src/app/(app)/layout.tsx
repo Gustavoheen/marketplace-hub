@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getUserWithTenant, getUserTenants } from '@/lib/db/queries/tenants'
 import { Sidebar } from '@/components/layout/sidebar'
+import { MobileNav } from '@/components/layout/mobile-nav'
 import { TenantProvider } from '@/components/layout/tenant-provider'
 import { QueryProvider } from '@/components/providers/query-provider'
 import type { Tenant, TenantUser as User } from '@/types'
@@ -36,9 +37,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <QueryProvider>
       <TenantProvider tenant={tenant} user={user}>
-        <div className="flex h-screen overflow-hidden">
+        {/* Desktop layout */}
+        <div className="hidden md:flex h-screen overflow-hidden">
           <Sidebar allTenants={allTenants} />
           <main className="flex-1 overflow-hidden">{children}</main>
+        </div>
+
+        {/* Mobile layout */}
+        <div className="flex flex-col md:hidden h-screen overflow-hidden">
+          <main className="flex-1 overflow-hidden">{children}</main>
+          {/* Spacer for bottom nav */}
+          <div className="h-[72px] shrink-0" />
+          <MobileNav allTenants={allTenants} />
         </div>
       </TenantProvider>
     </QueryProvider>

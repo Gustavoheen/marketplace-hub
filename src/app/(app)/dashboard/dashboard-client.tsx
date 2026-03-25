@@ -136,7 +136,7 @@ function KpiCard({
 
   return (
     <div
-      className="card-hover rounded-xl p-5 relative overflow-hidden"
+      className="card-hover rounded-xl p-4 md:p-5 relative overflow-hidden"
       style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
     >
       <div className="absolute top-0 right-0 h-20 w-20 rounded-bl-full opacity-40" style={{ background: glow }} />
@@ -150,7 +150,7 @@ function KpiCard({
         {loading ? (
           <div className="shimmer h-7 w-28 rounded mb-2" />
         ) : (
-          <p className="text-2xl font-bold" style={{ color: '#E8EDF5', fontFamily: 'var(--font-jetbrains-mono)' }}>
+          <p className="text-lg md:text-2xl font-bold" style={{ color: '#E8EDF5', fontFamily: 'var(--font-jetbrains-mono)' }}>
             {value}
           </p>
         )}
@@ -228,10 +228,10 @@ export function DashboardClient() {
     : (data?.trend || [])
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+    <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-5 pb-2">
 
       {/* ── Toolbar ── */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Period selector */}
         <div
           className="flex items-center gap-1 rounded-lg p-1"
@@ -287,7 +287,7 @@ export function DashboardClient() {
       </div>
 
       {/* ── KPI Grid ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <KpiCard
           label="Receita Total"
           value={kpis ? fmt(kpis.totalRevenue) : 'R$ —'}
@@ -333,9 +333,9 @@ export function DashboardClient() {
         {!hasData && !isLoading ? (
           <EmptyChart message="Conecte seus marketplaces para ver a evolução de receita." />
         ) : isLoading ? (
-          <div className="shimmer h-52 rounded-lg" />
+          <div className="shimmer h-40 md:h-52 rounded-lg" />
         ) : (
-          <ResponsiveContainer width="100%" height={210}>
+          <ResponsiveContainer width="100%" height={typeof window !== 'undefined' && window.innerWidth < 768 ? 170 : 210}>
             <AreaChart data={trendData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
               <defs>
                 <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
@@ -375,7 +375,7 @@ export function DashboardClient() {
       </Section>
 
       {/* ── Bottom row: channel mix + orders bar ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
 
         {/* Channel Mix (Pie) */}
         <Section title="Mix de Canais">
@@ -468,7 +468,7 @@ export function DashboardClient() {
       </div>
 
       {/* ── Status breakdown + product summary ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
 
         {/* Order status */}
         <Section title="Status dos Pedidos">
