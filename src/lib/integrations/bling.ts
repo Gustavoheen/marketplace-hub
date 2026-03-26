@@ -301,12 +301,22 @@ export async function buildLojaMarketplaceMap(token: string): Promise<Record<str
   }
 }
 
-/** Detecta o marketplace pelo padrão do numeroLoja (fallback quando /lojas falha) */
+/** Mapa fixo de loja IDs conhecidos → marketplace (complementa o /lojas dinâmico) */
+const LOJA_ID_MAP: Record<string, string> = {
+  '204325696': 'madeiramadeira',
+  '204317869': 'magalu',
+  '204643843': 'mercadolivre',
+  '204664956': 'mercadolivre',
+  '205290110': 'mercadolivre',
+  '205947821': 'webcontinental',
+}
+
+/** Detecta o marketplace pelo loja.id fixo ou padrão do numeroLoja (fallback quando /lojas falha) */
 export function detectMarketplaceByNumero(lojaId: string, numeroLoja: string): string {
   if (!lojaId || lojaId === '0' || !numeroLoja) return 'bling'
+  if (LOJA_ID_MAP[lojaId]) return LOJA_ID_MAP[lojaId]
   if (/^2000\d{12}/.test(numeroLoja)) return 'mercadolivre'
-  if (/^\d{7,10}$/.test(numeroLoja)) return 'shopee'
-  if (/^LU-/.test(numeroLoja)) return 'shopee'
+  if (/^LU-/.test(numeroLoja)) return 'magalu'
   if (/^W001/.test(numeroLoja)) return 'webcontinental'
   return 'outro'
 }
