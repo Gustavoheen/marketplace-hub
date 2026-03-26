@@ -62,6 +62,19 @@ npm run dev   # localhost:3000
 - [ ] Fase 5 — Portal do Cliente (links compartilhados)
 - [ ] Fase 6 — Agentes Autônomos (Profit Watcher, Data Entry Bot)
 
+## Regra de Sincronização Git (OBRIGATÓRIO)
+
+**Ao iniciar sessão:** o hook `SessionStart` roda `git pull` automaticamente — aguarde antes de editar.
+**Ao encerrar sessão:** sempre commitar e pushar tudo antes de fechar.
+
+```bash
+git add src/...     # adicionar arquivos alterados
+git commit -m "..."
+git push origin main
+```
+
+Nunca deixar trabalho sem commitar. O GitHub é a fonte da verdade entre contas e dispositivos.
+
 ## GitHub
 - Conta: Gustavoheen
 - Repo: https://github.com/Gustavoheen/marketplace-hub

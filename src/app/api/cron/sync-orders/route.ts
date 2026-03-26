@@ -91,7 +91,7 @@ function mapBlingOrderRow(tenantId: string, p: any) {
     bling_id: String(p.id),
     order_number: p.numero ? String(p.numero) : null,
     marketplace: p.canal_venda || 'bling',
-    status: p.situacao?.value || 'unknown',
+    status: p.situacao?.valor || p.situacao?.value || 'unknown',
     total_amount: Number(p.total || 0),
     items_count: p.itens?.length || 0,
     items_detail: itemsDetail,

@@ -10,8 +10,8 @@ import {
 } from 'recharts'
 import {
   TrendingUp, ShoppingCart, Package,
-  Percent, Plug, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  RefreshCw, Filter, Database,
+  Percent, AlertTriangle, ArrowUpRight, ArrowDownRight,
+  RefreshCw, Filter, Database, Wrench,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -24,12 +24,24 @@ interface DashboardStats {
     activeConnections: number
     revenueChange: number | null
     orderChange: number | null
+    estimatedProfit: number | null
+    netProfitEstimate: number | null
+    totalCommission: number
+    totalShippingPaid: number
+    totalTax: number
+    taxRate: number
+    taxRegime: string
+    productsWithCost: number
+    totalProducts: number
+    assistenciaCount: number
   }
-  trend: Array<{ date: string; revenue: number; orders: number }>
-  channelMix: Array<{ name: string; value: number }>
+  trend: Array<{ date: string; revenue: number; orders: number; profit: number }>
+  channelMix: Array<{ name: string; value: number; orders: number; commission: number; commissionRate: number }>
   statusBreakdown: Array<{ status: string; count: number }>
+  geoBreakdown: Array<{ state: string; orders: number; revenue: number }>
+  geoEnrichment: { withState: number; withoutState: number }
   pendingAlerts: number
-  products: { total: number; lowStock: number }
+  products: { total: number; lowStock: number; withCost: number }
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -39,6 +51,13 @@ const PERIODS = [
   { label: '30D', value: '30d' },
   { label: '90D', value: '90d' },
   { label: '1A', value: '1y' },
+]
+
+const TAX_REGIMES = [
+  { value: 'mei',              label: 'MEI',              rate: 0 },
+  { value: 'simples_nacional', label: 'Simples Nacional', rate: 6 },
+  { value: 'lucro_presumido',  label: 'Lucro Presumido',  rate: 11.33 },
+  { value: 'lucro_real',       label: 'Lucro Real',       rate: 9.25 },
 ]
 
 const CHANNEL_COLORS = [
@@ -94,9 +113,9 @@ function CustomTooltip({ active, payload, label, period }: any) {
       </p>
       {payload.map((p: any) => (
         <p key={p.name} style={{ color: p.color }}>
-          {p.name === 'revenue' ? 'Receita' : 'Pedidos'}:{' '}
+          {p.name === 'revenue' ? 'Receita' : p.name === 'profit' ? 'Lucro est.' : 'Pedidos'}:{' '}
           <span className="font-bold">
-            {p.name === 'revenue' ? fmt(p.value) : p.value}
+            {p.name === 'revenue' || p.name === 'profit' ? fmt(p.value) : p.value}
           </span>
         </p>
       ))}
@@ -173,6 +192,57 @@ function KpiCard({
   )
 }
 
+// ── Assistência Card ───────────────────────────────────────────────────────
+
+function AssistenciaCard({ count, total, loading }: { count: number; total: number; loading?: boolean }) {
+  const pct = total > 0 ? (count / total) * 100 : 0
+  const color = pct === 0 ? 'var(--emerald)' : pct < 2 ? '#F59E0B' : '#F87171'
+  const glow = pct === 0 ? 'rgba(16,212,138,0.12)' : pct < 2 ? 'rgba(245,158,11,0.12)' : 'rgba(248,113,113,0.12)'
+
+  return (
+    <div
+      className="rounded-xl p-4 md:p-5 flex items-center gap-5"
+      style={{ background: 'var(--card)', border: `1px solid ${pct > 0 ? 'rgba(248,113,113,0.3)' : 'var(--border)'}` }}
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: glow }}>
+        <Wrench className="h-5 w-5" style={{ color }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[12px] font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>
+          Pedidos em Assistência
+        </p>
+        {loading ? (
+          <div className="shimmer h-5 w-32 rounded" />
+        ) : (
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <span className="text-xl font-bold" style={{ color, fontFamily: 'var(--font-jetbrains-mono)' }}>
+              {pct.toFixed(2)}%
+            </span>
+            <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+              {count} {count === 1 ? 'pedido' : 'pedidos'} de {total.toLocaleString('pt-BR')} no período
+            </span>
+          </div>
+        )}
+        {!loading && (
+          <div className="mt-2 h-1.5 w-full rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(pct * 5, 100)}%`, background: color }}
+            />
+          </div>
+        )}
+      </div>
+      <a
+        href="/pedidos?status=assist"
+        className="shrink-0 text-xs font-medium hover:underline"
+        style={{ color }}
+      >
+        Ver pedidos →
+      </a>
+    </div>
+  )
+}
+
 // ── Section wrapper ────────────────────────────────────────────────────────
 
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -209,7 +279,19 @@ export function DashboardClient() {
   const [marketplace, setMarketplace] = useState('all')
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [savingTax, setSavingTax] = useState(false)
   const queryClient = useQueryClient()
+
+  async function handleTaxRegimeChange(regime: string) {
+    setSavingTax(true)
+    await fetch('/api/tenant/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tax_regime: regime }),
+    })
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+    setSavingTax(false)
+  }
 
   async function handleSync() {
     setSyncing(true)
@@ -283,12 +365,7 @@ export function DashboardClient() {
             value={marketplace}
             onChange={e => setMarketplace(e.target.value)}
             className="rounded-lg pl-8 pr-3 py-1.5 text-[12px] appearance-none cursor-pointer"
-            style={{
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
-              color: '#E8EDF5',
-              outline: 'none',
-            }}
+            style={{ background: 'var(--card)', border: '1px solid var(--border)', color: '#E8EDF5', outline: 'none' }}
           >
             <option value="all">Todos os canais</option>
             <option value="mercadolivre">Mercado Livre</option>
@@ -297,6 +374,20 @@ export function DashboardClient() {
             <option value="bling">Bling</option>
           </select>
         </div>
+
+        {/* Regime tributário */}
+        <select
+          value={kpis?.taxRegime ?? 'simples_nacional'}
+          onChange={e => handleTaxRegimeChange(e.target.value)}
+          disabled={savingTax}
+          className="rounded-lg px-3 py-1.5 text-[12px] appearance-none cursor-pointer disabled:opacity-60"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: '#E8EDF5', outline: 'none' }}
+          title="Regime tributário usado no cálculo de lucro"
+        >
+          {TAX_REGIMES.map(r => (
+            <option key={r.value} value={r.value}>{r.label} ({r.rate}%)</option>
+          ))}
+        </select>
 
         <div className="ml-auto flex items-center gap-2">
           {/* Sync Bling */}
@@ -354,37 +445,44 @@ export function DashboardClient() {
           loading={isLoading}
         />
         <KpiCard
-          label="Pedidos"
-          value={kpis ? String(kpis.totalOrders) : '—'}
-          change={kpis?.orderChange}
-          sub="vs período anterior"
-          icon={ShoppingCart}
+          label="Lucro Estimado"
+          value={kpis?.estimatedProfit != null ? fmt(kpis.estimatedProfit) : 'R$ —'}
+          sub={kpis ? `−${fmt(kpis.totalCommission)} comissão · −${fmt(kpis.totalTax)} imposto (${kpis.taxRate}%)` : ''}
+          icon={TrendingUp}
           color="var(--emerald)"
           glow="rgba(16,212,138,0.12)"
           loading={isLoading}
         />
         <KpiCard
-          label="Margem Média"
-          value={kpis?.avgMargin != null ? `${kpis.avgMargin.toFixed(1)}%` : '—%'}
-          sub="Após comissões e impostos"
-          icon={Percent}
+          label="Pedidos"
+          value={kpis ? String(kpis.totalOrders) : '—'}
+          change={kpis?.orderChange}
+          sub="vs período anterior"
+          icon={ShoppingCart}
           color="#F59E0B"
           glow="rgba(245,158,11,0.12)"
           loading={isLoading}
         />
         <KpiCard
-          label="Canais Ativos"
-          value={kpis ? `${kpis.activeConnections} canal${kpis.activeConnections !== 1 ? 'is' : ''}` : '—'}
-          sub={data?.pendingAlerts ? `${data.pendingAlerts} alerta(s) pendente(s)` : 'Sem alertas'}
-          icon={Plug}
+          label="Margem Média"
+          value={kpis?.avgMargin != null ? `${kpis.avgMargin.toFixed(1)}%` : '—%'}
+          sub={kpis ? `${kpis.productsWithCost}/${kpis.totalProducts} c/ custo` : ''}
+          icon={Percent}
           color="#818CF8"
           glow="rgba(129,140,248,0.12)"
           loading={isLoading}
         />
       </div>
 
+      {/* ── Assistência KPI ── */}
+      <AssistenciaCard
+        count={kpis?.assistenciaCount ?? 0}
+        total={kpis?.totalOrders ?? 0}
+        loading={isLoading}
+      />
+
       {/* ── Revenue trend chart ── */}
-      <Section title="Receita ao Longo do Tempo">
+      <Section title="Receita e Lucro Estimado">
         {!hasData && !isLoading ? (
           <EmptyChart message="Conecte seus marketplaces para ver a evolução de receita." />
         ) : isLoading ? (
@@ -394,8 +492,12 @@ export function DashboardClient() {
             <AreaChart data={trendData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
               <defs>
                 <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--cyan)" stopOpacity={0.25} />
+                  <stop offset="5%" stopColor="var(--cyan)" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="var(--cyan)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10D48A" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#10D48A" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -423,6 +525,16 @@ export function DashboardClient() {
                 fill="url(#revenueGrad)"
                 dot={false}
                 activeDot={{ r: 4, fill: 'var(--cyan)', strokeWidth: 0 }}
+              />
+              <Area
+                type="monotone"
+                dataKey="profit"
+                stroke="#10D48A"
+                strokeWidth={1.5}
+                strokeDasharray="4 2"
+                fill="url(#profitGrad)"
+                dot={false}
+                activeDot={{ r: 3, fill: '#10D48A', strokeWidth: 0 }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -463,19 +575,27 @@ export function DashboardClient() {
                   const total = data.channelMix.reduce((s, c) => s + c.value, 0)
                   const pct = total > 0 ? ((ch.value / total) * 100).toFixed(1) : '0'
                   return (
-                    <div key={ch.name} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div
-                          className="h-2 w-2 flex-shrink-0 rounded-full"
-                          style={{ background: CHANNEL_COLORS[i % CHANNEL_COLORS.length] }}
-                        />
-                        <span className="text-[11px] truncate" style={{ color: 'var(--muted-foreground)' }}>
-                          {MARKETPLACE_LABELS[ch.name] || ch.name}
+                    <div key={ch.name} className="space-y-0.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className="h-2 w-2 flex-shrink-0 rounded-full"
+                            style={{ background: CHANNEL_COLORS[i % CHANNEL_COLORS.length] }}
+                          />
+                          <span className="text-[11px] truncate" style={{ color: 'var(--muted-foreground)' }}>
+                            {MARKETPLACE_LABELS[ch.name] || ch.name}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: '#E8EDF5' }}>
+                          {pct}%
                         </span>
                       </div>
-                      <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: '#E8EDF5' }}>
-                        {pct}%
-                      </span>
+                      <div className="flex items-center justify-between pl-4 text-[10px]">
+                        <span style={{ color: 'var(--sidebar-border)' }}>
+                          {ch.orders} pedidos · {ch.commissionRate}% comissão
+                        </span>
+                        <span style={{ color: '#F87171' }}>−{fmt(ch.commission)}</span>
+                      </div>
                     </div>
                   )
                 })}
@@ -569,10 +689,10 @@ export function DashboardClient() {
         </Section>
 
         {/* Products summary */}
-        <Section title="Estoque de Produtos">
+        <Section title="Produtos e Custos">
           {isLoading ? (
             <div className="space-y-3">
-              {[...Array(3)].map((_, i) => <div key={i} className="shimmer h-14 rounded" />)}
+              {[...Array(4)].map((_, i) => <div key={i} className="shimmer h-14 rounded" />)}
             </div>
           ) : (
             <div className="space-y-3">
@@ -586,6 +706,31 @@ export function DashboardClient() {
                 </div>
                 <span className="font-bold text-[15px]" style={{ color: '#E8EDF5', fontFamily: 'var(--font-jetbrains-mono)' }}>
                   {data?.products.total ?? '—'}
+                </span>
+              </div>
+              <div
+                className="flex items-center justify-between rounded-lg p-3"
+                style={{
+                  background: (data?.products.withCost ?? 0) > 0 ? 'rgba(16,212,138,0.06)' : 'rgba(245,158,11,0.06)',
+                  border: `1px solid ${(data?.products.withCost ?? 0) > 0 ? 'rgba(16,212,138,0.2)' : 'rgba(245,158,11,0.2)'}`,
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Percent className="h-4 w-4" style={{ color: (data?.products.withCost ?? 0) > 0 ? 'var(--emerald)' : 'var(--amber)' }} />
+                  <div>
+                    <span className="text-[13px] block" style={{ color: '#E8EDF5' }}>Com custo cadastrado</span>
+                    {(data?.products.withCost ?? 0) === 0 && (
+                      <span className="text-[10px]" style={{ color: 'var(--amber)' }}>
+                        Cadastre custos para calcular lucro real
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span
+                  className="font-bold text-[15px]"
+                  style={{ color: (data?.products.withCost ?? 0) > 0 ? 'var(--emerald)' : 'var(--amber)', fontFamily: 'var(--font-jetbrains-mono)' }}
+                >
+                  {data?.products.withCost ?? '0'}/{data?.products.total ?? '—'}
                 </span>
               </div>
               <div
@@ -611,13 +756,74 @@ export function DashboardClient() {
                 className="flex items-center justify-between rounded-lg p-3 transition-opacity hover:opacity-80"
                 style={{ background: 'rgba(6,200,217,0.06)', border: '1px solid rgba(6,200,217,0.15)' }}
               >
-                <span className="text-[13px] font-medium" style={{ color: 'var(--cyan)' }}>Ver todos os produtos</span>
+                <span className="text-[13px] font-medium" style={{ color: 'var(--cyan)' }}>Gerenciar produtos e custos</span>
                 <ArrowUpRight className="h-4 w-4" style={{ color: 'var(--cyan)' }} />
               </a>
             </div>
           )}
         </Section>
       </div>
+
+      {/* ── Seção Geográfica ── */}
+      <Section
+        title="Vendas por Estado"
+        action={
+          data?.geoEnrichment && data.geoEnrichment.withoutState > 0 ? (
+            <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--amber)' }}>
+              {data.geoEnrichment.withState} de {data.geoEnrichment.withState + data.geoEnrichment.withoutState} mapeados
+            </span>
+          ) : undefined
+        }
+      >
+        {isLoading ? (
+          <div className="shimmer h-48 rounded-lg" />
+        ) : !data?.geoBreakdown?.length ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-2">
+            <p className="text-[13px]" style={{ color: 'var(--muted-foreground)' }}>
+              Mapeando estados dos pedidos...
+            </p>
+            <p className="text-[11px]" style={{ color: 'var(--sidebar-border)' }}>
+              O enriquecimento de endereços roda automaticamente em background.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data.geoBreakdown.map((row, i) => {
+              const maxOrders = data.geoBreakdown[0].orders
+              const pct = (row.orders / maxOrders) * 100
+              const totalRev = data.geoBreakdown.reduce((s, r) => s + r.revenue, 0)
+              const revPct = totalRev > 0 ? ((row.revenue / totalRev) * 100).toFixed(1) : '0'
+              return (
+                <div key={row.state}>
+                  <div className="flex items-center gap-3 mb-1">
+                    <span
+                      className="text-[12px] font-bold font-mono w-7 shrink-0 text-center rounded"
+                      style={{ background: 'rgba(6,200,217,0.1)', color: 'var(--cyan)' }}
+                    >
+                      {row.state}
+                    </span>
+                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct}%`, background: `linear-gradient(90deg, var(--cyan), var(--emerald))` }}
+                      />
+                    </div>
+                    <span className="text-[11px] w-8 text-right shrink-0 font-semibold" style={{ color: '#E8EDF5' }}>
+                      {row.orders}
+                    </span>
+                    <span className="text-[11px] w-14 text-right shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+                      {revPct}% fat.
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+            <p className="text-[11px] pt-1" style={{ color: 'var(--sidebar-border)' }}>
+              💡 Estados com maior volume são bons alvos para promoções (especialmente Lucro Presumido — alíquotas menores em operações interestaduais)
+            </p>
+          </div>
+        )}
+      </Section>
 
     </div>
   )
