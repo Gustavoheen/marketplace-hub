@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserWithTenant } from '@/lib/db/queries/tenants'
 import { getConnection, upsertConnection } from '@/lib/db/queries/connections'
-import { blingGetTodosProdutos, blingGetTodosPedidos, blingRefreshToken } from '@/lib/integrations/bling'
+import { blingGetTodosProdutos, blingGetTodosPedidos, blingRefreshToken, buildLojaMarketplaceMap, detectMarketplaceByNumero } from '@/lib/integrations/bling'
 import { bulkUpsertProducts } from '@/lib/db/queries/products'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -51,22 +51,33 @@ export async function POST(request: NextRequest) {
 
   // ── Pedidos ─────────────────────────────────────────────────────────────
   try {
-    const lista = await blingGetTodosPedidos(accessToken)
+    const [lista, lojaMap] = await Promise.all([
+      blingGetTodosPedidos(accessToken),
+      buildLojaMarketplaceMap(accessToken),
+    ])
     if (lista.length) {
       for (let i = 0; i < lista.length; i += 50) {
-        const batch = lista.slice(i, i + 50).map((p: any) => ({
-          tenant_id: tenantId,
-          source: 'bling',
-          bling_id: String(p.id),
-          marketplace: p.canal_venda || 'bling',
-          status: p.situacao?.value || 'unknown',
-          total_amount: Number(p.total || 0),
-          items_count: p.itens?.length || 0,
-          customer_name: p.contato?.nome || null,
-          raw_data: p,
-          order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
-          synced_at: new Date().toISOString(),
-        }))
+        const batch = lista.slice(i, i + 50).map((p: any) => {
+          const lojaId = String(p.loja?.id ?? '0')
+          const numeroLoja = p.numeroLoja ?? ''
+          const marketplace = lojaMap[lojaId] ?? detectMarketplaceByNumero(lojaId, numeroLoja)
+          return {
+            tenant_id: tenantId,
+            bling_id: String(p.id),
+            order_number: p.numero ? String(p.numero) : null,
+            marketplace,
+            status: p.situacao?.valor || p.situacao?.value || 'unknown',
+            total_amount: Number(p.total || 0),
+            customer_name: p.contato?.nome || null,
+            customer_state: p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null,
+            shipping_carrier: p.transporte?.transportador?.nome || p.transporte?.transportadora?.nome || null,
+            shipping_cost: Number(p.transporte?.frete || 0) || null,
+            discount_total: Number(p.desconto?.valor || 0) || null,
+            raw_data: p,
+            order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
+            synced_at: new Date().toISOString(),
+          }
+        })
         await svc
           .schema('marketplace')
           .from('orders')

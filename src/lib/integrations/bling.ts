@@ -266,6 +266,51 @@ export async function blingGetCanais(token: string) {
   return blingFetch<any>('/canais', token)
 }
 
+// ── Lojas (canais de venda conectados ao Bling) ───────────────────────────────
+
+export async function blingGetLojas(token: string) {
+  return blingFetch<any>('/lojas', token)
+}
+
+/** Busca todas as lojas do Bling e retorna um mapa { lojaId → slug do marketplace } */
+export async function buildLojaMarketplaceMap(token: string): Promise<Record<string, string>> {
+  try {
+    const res = await blingGetLojas(token)
+    const lojas: any[] = res?.data ?? []
+    const map: Record<string, string> = {}
+    for (const loja of lojas) {
+      const id = String(loja.id)
+      const nome: string = (loja.descricao || loja.nome || '').toLowerCase()
+      if (nome.includes('mercado livre') || nome.includes('mercadolivre')) map[id] = 'mercadolivre'
+      else if (nome.includes('shopee')) map[id] = 'shopee'
+      else if (nome.includes('amazon')) map[id] = 'amazon'
+      else if (nome.includes('magalu') || nome.includes('magazine')) map[id] = 'magalu'
+      else if (nome.includes('americanas')) map[id] = 'americanas'
+      else if (nome.includes('casas bahia') || nome.includes('casasbahia')) map[id] = 'casas_bahia'
+      else if (nome.includes('shein')) map[id] = 'shein'
+      else if (nome.includes('webcontinental') || nome.includes('web continental')) map[id] = 'webcontinental'
+      else if (nome.includes('carrefour')) map[id] = 'carrefour'
+      else if (nome.includes('kabum')) map[id] = 'kabum'
+      else if (nome.includes('netshoes')) map[id] = 'netshoes'
+      else if (nome.includes('madeira')) map[id] = 'madeiramadeira'
+      else map[id] = nome.replace(/\s+/g, '_') || 'outro'
+    }
+    return map
+  } catch {
+    return {}
+  }
+}
+
+/** Detecta o marketplace pelo padrão do numeroLoja (fallback quando /lojas falha) */
+export function detectMarketplaceByNumero(lojaId: string, numeroLoja: string): string {
+  if (!lojaId || lojaId === '0' || !numeroLoja) return 'bling'
+  if (/^2000\d{12}/.test(numeroLoja)) return 'mercadolivre'
+  if (/^\d{7,10}$/.test(numeroLoja)) return 'shopee'
+  if (/^LU-/.test(numeroLoja)) return 'shopee'
+  if (/^W001/.test(numeroLoja)) return 'webcontinental'
+  return 'outro'
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sleep(ms: number) {
