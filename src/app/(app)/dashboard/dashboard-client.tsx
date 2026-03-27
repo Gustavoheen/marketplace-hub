@@ -243,7 +243,7 @@ function AssistenciaCard({ count, total, loading }: { count: number; total: numb
         )}
       </div>
       <a
-        href="/pedidos?status=assist"
+        href="/pedidos?view=assistencia"
         className="shrink-0 text-xs font-medium hover:underline"
         style={{ color }}
       >
