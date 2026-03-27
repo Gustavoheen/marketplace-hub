@@ -95,26 +95,20 @@ export default async function PedidosPage({
   // ── Contagens e filtros (queries leves, sem JOIN) ──────────────────────────
   const tid = tenantId
 
-  function applyDateFilter<T extends ReturnType<typeof svc.schema>>(q: any) {
-    if (startDate) q = q.gte('order_date', startDate)
-    if (endDate) q = q.lte('order_date', endDate)
-    return q as T
-  }
-
-  const baseCount = () => applyDateFilter(
-    svc.schema('marketplace').from('orders')
+  function countQuery() {
+    let q: any = svc.schema('marketplace').from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tid)
-  )
+    if (startDate) q = q.gte('order_date', startDate)
+    if (endDate) q = q.lte('order_date', endDate)
+    return q
+  }
 
-  const { count: totalCount } = await baseCount()
-
-  const { count: atendidoCount } = await (baseCount() as any).ilike('status', '%atendido%')
-
-  const { count: canceladoCount } = await (baseCount() as any).ilike('status', '%cancel%')
-
-  const { count: assistenciaCount } = await (baseCount() as any)
-    .or(STATUS_ASSISTENCIA.map(s => `status.ilike.%${s}%`).join(','))
+  const { count: totalCount } = await countQuery()
+  const { count: atendidoCount } = await countQuery().ilike('status', '%atendido%')
+  const { count: canceladoCount } = await countQuery().ilike('status', '%cancel%')
+  const { count: assistenciaCount } = await countQuery()
+    .or(STATUS_ASSISTENCIA.map((s: string) => `status.ilike.%${s}%`).join(','))
 
   const { data: statusList } = await svc
     .schema('marketplace').from('orders')
