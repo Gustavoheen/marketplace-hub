@@ -169,15 +169,15 @@ export async function GET(request: NextRequest) {
     ? totalRevenue * (avgMargin / 100) - totalCommission - totalShippingPaid
     : null
 
-  // Previous period comparison
-  const prevStart = new Date(startDate)
-  prevStart.setDate(prevStart.getDate() - days)
+  // Previous period comparison (mesmo span de dias antes do período atual)
+  const spanMs = new Date(endIso ?? new Date()).getTime() - new Date(startIso).getTime()
+  const prevStartIso = new Date(new Date(startIso).getTime() - spanMs).toISOString()
   const { data: prevOrders } = await svc
     .schema('marketplace')
     .from('orders')
     .select('total_amount')
     .eq('tenant_id', tenantId)
-    .gte('order_date', prevStart.toISOString())
+    .gte('order_date', prevStartIso)
     .lt('order_date', startIso)
 
   const prevRevenue = (prevOrders || []).reduce((s, o) => s + Number(o.total_amount || 0), 0)
@@ -202,9 +202,10 @@ export async function GET(request: NextRequest) {
     profitByDay[day] = (profitByDay[day] || 0) + (amount - commission - shipping - amount * (taxRate / 100))
   }
 
+  const trendDays = Math.ceil((new Date(endIso ?? new Date()).getTime() - new Date(startIso).getTime()) / 86400000) || 1
   const trend: Array<{ date: string; revenue: number; orders: number; profit: number }> = []
-  for (let d = 0; d < days; d++) {
-    const dt = new Date(startDate)
+  for (let d = 0; d < trendDays; d++) {
+    const dt = new Date(startIso)
     dt.setDate(dt.getDate() + d)
     const key = dt.toISOString().slice(0, 10)
     trend.push({
