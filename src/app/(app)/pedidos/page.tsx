@@ -45,8 +45,20 @@ export default async function PedidosPage({
   const period = params.period || '30d'
   const view = params.view || 'todos'
 
-  const days = period === '7d' ? 7 : period === '90d' ? 90 : period === '1y' ? 365 : period === 'all' ? 0 : 30
-  const startDate = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : null
+  let startDate: string | null = null
+  let endDate: string | null = null
+
+  if (period === 'yesterday') {
+    const y = new Date(); y.setDate(y.getDate() - 1); y.setHours(0, 0, 0, 0)
+    const yEnd = new Date(y); yEnd.setHours(23, 59, 59, 999)
+    startDate = y.toISOString(); endDate = yEnd.toISOString()
+  } else if (period === '1d') {
+    const t = new Date(); t.setHours(0, 0, 0, 0)
+    startDate = t.toISOString()
+  } else if (period !== 'all') {
+    const days = period === '7d' ? 7 : period === '90d' ? 90 : period === '1y' ? 365 : 30
+    startDate = new Date(Date.now() - days * 86400000).toISOString()
+  }
 
   // ── Query principal (sem raw_data para evitar payload pesado) ──────────────
   let query = svc
@@ -58,6 +70,7 @@ export default async function PedidosPage({
     .range(offset, offset + pageSize - 1)
 
   if (startDate) query = query.gte('order_date', startDate)
+  if (endDate) query = query.lte('order_date', endDate)
   if (params.q) query = query.or(`customer_name.ilike.%${params.q}%,order_number.ilike.%${params.q}%`)
   if (params.marketplace) query = query.eq('marketplace', params.marketplace as any)
 
@@ -81,29 +94,26 @@ export default async function PedidosPage({
 
   // ── Contagens e filtros (queries leves, sem JOIN) ──────────────────────────
   const tid = tenantId
-  const dateFilter = startDate || '2000-01-01'
 
-  const { count: totalCount } = await svc
-    .schema('marketplace').from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('tenant_id', tid).gte('order_date', dateFilter)
+  function applyDateFilter<T extends ReturnType<typeof svc.schema>>(q: any) {
+    if (startDate) q = q.gte('order_date', startDate)
+    if (endDate) q = q.lte('order_date', endDate)
+    return q as T
+  }
 
-  const { count: atendidoCount } = await svc
-    .schema('marketplace').from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('tenant_id', tid).gte('order_date', dateFilter)
-    .ilike('status', '%atendido%')
+  const baseCount = () => applyDateFilter(
+    svc.schema('marketplace').from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tid)
+  )
 
-  const { count: canceladoCount } = await svc
-    .schema('marketplace').from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('tenant_id', tid).gte('order_date', dateFilter)
-    .ilike('status', '%cancel%')
+  const { count: totalCount } = await baseCount()
 
-  const { count: assistenciaCount } = await svc
-    .schema('marketplace').from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('tenant_id', tid).gte('order_date', dateFilter)
+  const { count: atendidoCount } = await (baseCount() as any).ilike('status', '%atendido%')
+
+  const { count: canceladoCount } = await (baseCount() as any).ilike('status', '%cancel%')
+
+  const { count: assistenciaCount } = await (baseCount() as any)
     .or(STATUS_ASSISTENCIA.map(s => `status.ilike.%${s}%`).join(','))
 
   const { data: statusList } = await svc

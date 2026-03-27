@@ -47,6 +47,8 @@ interface DashboardStats {
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const PERIODS = [
+  { label: 'Hoje', value: '1d' },
+  { label: 'Ontem', value: 'yesterday' },
   { label: '7D', value: '7d' },
   { label: '30D', value: '30d' },
   { label: '90D', value: '90d' },

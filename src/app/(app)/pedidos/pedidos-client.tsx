@@ -34,6 +34,8 @@ interface Props {
 }
 
 const PERIODS = [
+  { label: 'Hoje', value: '1d' },
+  { label: 'Ontem', value: 'yesterday' },
   { label: '7 dias', value: '7d' },
   { label: '30 dias', value: '30d' },
   { label: '90 dias', value: '90d' },

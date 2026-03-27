@@ -60,10 +60,24 @@ export async function GET(request: NextRequest) {
 
   const svc = createServiceClient()
 
-  const days = period === '7d' ? 7 : period === '90d' ? 90 : period === '1y' ? 365 : 30
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - days)
-  const startIso = startDate.toISOString()
+  let startIso: string
+  let endIso: string | null = null
+
+  if (period === 'yesterday') {
+    const y = new Date()
+    y.setDate(y.getDate() - 1)
+    y.setHours(0, 0, 0, 0)
+    const yEnd = new Date(y)
+    yEnd.setHours(23, 59, 59, 999)
+    startIso = y.toISOString()
+    endIso = yEnd.toISOString()
+  } else {
+    const days = period === '1d' ? 1 : period === '7d' ? 7 : period === '90d' ? 90 : period === '1y' ? 365 : 30
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+    startDate.setHours(0, 0, 0, 0)
+    startIso = startDate.toISOString()
+  }
 
   // ── Fetch orders ──────────────────────────────────────────────────────────
 
@@ -74,11 +88,10 @@ export async function GET(request: NextRequest) {
     .eq('tenant_id', tenantId)
     .gte('order_date', startIso)
     .order('order_date', { ascending: true })
-    .limit(10000)  // garante que todos os pedidos do período sejam carregados
+    .limit(10000)
 
-  if (marketplace !== 'all') {
-    ordersQuery = ordersQuery.eq('marketplace', marketplace as any)
-  }
+  if (endIso) ordersQuery = ordersQuery.lte('order_date', endIso)
+  if (marketplace !== 'all') ordersQuery = ordersQuery.eq('marketplace', marketplace as any)
 
   const [
     { data: orders },
@@ -245,9 +258,8 @@ export async function GET(request: NextRequest) {
     .not('customer_state', 'is', null)
     .limit(10000)
 
-  if (marketplace !== 'all') {
-    stateQuery = stateQuery.eq('marketplace', marketplace as any)
-  }
+  if (endIso) stateQuery = stateQuery.lte('order_date', endIso)
+  if (marketplace !== 'all') stateQuery = stateQuery.eq('marketplace', marketplace as any)
 
   const { data: stateRows } = await stateQuery
 
