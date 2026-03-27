@@ -95,23 +95,55 @@ function buildObterTrackingEnvelope(login: string, senha: string, dataConsulta?:
 /** Busca eventos de tracking da Total Express. Se não informar data, retorna lotes pendentes. */
 export async function obterTracking(dataConsulta?: string): Promise<TeTrackingEvent[]> {
   const { login, senha } = getCredentials()
-  const body = buildObterTrackingEnvelope(login, senha, dataConsulta)
 
-  // Tenta primeiro com WS-Security no envelope; fallback com HTTP Basic Auth
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml;charset=UTF-8',
-      'SOAPAction': '',
-      'Authorization': basicAuth(login, senha),
-    },
-    body,
-  })
+  // Tenta 3 variações de autenticação em sequência
+  const auth = basicAuth(login, senha)
+  const attempts: Array<{ body: string; extraHeaders: Record<string, string> }> = [
+    // 1. WS-Security no envelope + HTTP Basic
+    { body: buildObterTrackingEnvelope(login, senha, dataConsulta), extraHeaders: { Authorization: auth } },
+    // 2. Somente HTTP Basic (sem WS-Security no envelope)
+    { body: buildObterTrackingEnvelopeSemAuth(dataConsulta), extraHeaders: { Authorization: auth } },
+    // 3. WS-Security no envelope sem HTTP Basic
+    { body: buildObterTrackingEnvelope(login, senha, dataConsulta), extraHeaders: {} },
+  ]
 
-  const xml = await res.text()
-  if (!res.ok) throw new Error(`Total Express HTTP ${res.status}: ${xml.slice(0, 300)}`)
+  let lastXml = ''
+  for (const attempt of attempts) {
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '', ...attempt.extraHeaders },
+      body: attempt.body,
+    })
+    const xml = await res.text()
+    if (res.ok) return parseObterTrackingResponse(xml)
+    lastXml = xml
+    if (res.status !== 401) break
+  }
 
-  return parseObterTrackingResponse(xml)
+  throw new Error(`Total Express auth falhou. Resposta: ${lastXml.slice(0, 500)}`)
+}
+
+function buildObterTrackingEnvelopeSemAuth(dataConsulta?: string): string {
+  const dateTag = dataConsulta
+    ? `<DataConsulta xsi:type="xsd:date">${dataConsulta}</DataConsulta>`
+    : ''
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope
+  xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:ns1="urn:ObterTracking"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ns2="http://edi.totalexpress.com.br/soap/webservice_v24.total"
+  xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+  SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <SOAP-ENV:Body>
+    <ns1:ObterTracking>
+      <ObterTrackingRequest xsi:type="ns2:ObterTrackingRequest">
+        ${dateTag}
+      </ObterTrackingRequest>
+    </ns1:ObterTracking>
+  </SOAP-ENV:Body>
+</SOAP-ENV:Envelope>`
 }
 
 function extractTag(xml: string, tag: string): string {
