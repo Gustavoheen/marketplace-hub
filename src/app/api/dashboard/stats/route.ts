@@ -74,9 +74,10 @@ export async function GET(request: NextRequest) {
     .eq('tenant_id', tenantId)
     .gte('order_date', startIso)
     .order('order_date', { ascending: true })
+    .limit(10000)  // garante que todos os pedidos do período sejam carregados
 
   if (marketplace !== 'all') {
-    ordersQuery = ordersQuery.eq('marketplace', marketplace)
+    ordersQuery = ordersQuery.eq('marketplace', marketplace as any)
   }
 
   const [
