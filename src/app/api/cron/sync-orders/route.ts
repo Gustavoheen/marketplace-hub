@@ -49,8 +49,10 @@ export async function GET(request: NextRequest) {
         accessToken = fresh.accessToken
       }
 
+      // Busca apenas últimos 3 dias para manter o cron rápido
+      const dataInicial = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10)
       const [pedidos, lojaMap] = await Promise.all([
-        blingGetTodosPedidos(accessToken),
+        blingGetTodosPedidos(accessToken, dataInicial),
         buildLojaMarketplaceMap(accessToken),
       ])
       if (!pedidos.length) continue

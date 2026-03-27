@@ -83,10 +83,11 @@ export async function POST(request: NextRequest) {
           if (customerState) row.customer_state = customerState
           return row
         })
-        await svc
+        const { error: upsertErr } = await svc
           .schema('marketplace')
           .from('orders')
           .upsert(batch, { onConflict: 'tenant_id,bling_id' })
+        if (upsertErr) errors.push(`Upsert batch ${i / 50 + 1}: ${upsertErr.message}`)
       }
       pedidos = lista.length
     }
