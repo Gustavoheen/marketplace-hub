@@ -115,12 +115,22 @@ export async function obterTracking(dataConsulta?: string): Promise<TeTrackingEv
       body: attempt.body,
     })
     const xml = await res.text()
-    if (res.ok) return parseObterTrackingResponse(xml)
     lastXml = xml
+
+    if (res.ok || res.status === 500) {
+      // 200 = sucesso, 500 = SOAP Fault — ambos têm conteúdo útil
+      if (xml.includes('faultstring')) {
+        const fault = extractTag(xml, 'faultstring')
+        throw new Error(`Total Express SOAP Fault: ${fault || xml.slice(0, 800)}`)
+      }
+      if (res.ok) return parseObterTrackingResponse(xml)
+    }
+
     if (res.status !== 401) break
   }
 
-  throw new Error(`Total Express auth falhou. Resposta: ${lastXml.slice(0, 500)}`)
+  const fault = extractTag(lastXml, 'faultstring')
+  throw new Error(`Total Express erro: ${fault || lastXml.slice(0, 800)}`)
 }
 
 function buildObterTrackingEnvelopeSemAuth(dataConsulta?: string): string {
