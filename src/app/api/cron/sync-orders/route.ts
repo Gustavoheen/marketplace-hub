@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { blingGetTodosPedidos, blingRefreshToken, normalizarSituacao, buildLojaMarketplaceMap, detectMarketplaceByNumero } from '@/lib/integrations/bling'
+import { extractNfFromBling } from '@/lib/integrations/totalexpress'
 import { upsertConnection } from '@/lib/db/queries/connections'
 
 // Chamado pelo Vercel Cron a cada 2 horas
@@ -103,6 +104,7 @@ function mapBlingOrderRow(tenantId: string, p: any, lojaMap: Record<string, stri
     shipping_carrier: p.transporte?.transportador?.nome || p.transporte?.transportadora?.nome || null,
     shipping_cost: Number(p.transporte?.frete || 0) || null,
     discount_total: Number(p.desconto?.valor || 0) || null,
+    ...extractNfFromBling(p),
     raw_data: p,
     order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
     synced_at: new Date().toISOString(),

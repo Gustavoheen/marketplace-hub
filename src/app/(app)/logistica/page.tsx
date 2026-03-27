@@ -33,7 +33,7 @@ export default async function LogisticaPage({
   const startDate = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : null
 
   let orderQuery = svc.schema('marketplace').from('orders')
-    .select('id, order_date, marketplace, status, total_amount, shipping_cost, customer_state, shipping_carrier')
+    .select('id, order_number, order_date, marketplace, status, total_amount, shipping_cost, customer_state, shipping_carrier, tracking_code, tracking_status, tracking_desc, tracking_date, nf_number')
     .eq('tenant_id', tenantId!)
     .order('order_date', { ascending: false })
     .limit(5000)
@@ -125,6 +125,31 @@ export default async function LogisticaPage({
 
   const semEstado = orders.filter(o => !o.customer_state).length
 
+  // ── Tracking Total Express ─────────────────────────────────────────────────
+  const withTracking = orders.filter(o => o.tracking_status != null)
+  const entregues    = withTracking.filter(o => Number(o.tracking_status) === 1).length
+  const emEntrega    = withTracking.filter(o => [104, 91, 70].includes(Number(o.tracking_status))).length
+  const emTransito   = withTracking.filter(o => [101, 102, 103, 83, 68, 0].includes(Number(o.tracking_status))).length
+  const comProblema  = withTracking.filter(o => {
+    const c = Number(o.tracking_status)
+    return c >= 6 && ![68, 83, 101, 102, 103, 104, 91, 70, 1].includes(c)
+  }).length
+
+  // Pedidos recentes com tracking (últimos 20 para tabela)
+  const recentTracking = orders
+    .filter(o => o.tracking_status != null)
+    .slice(0, 20)
+    .map(o => ({
+      id: o.id,
+      order_number: o.order_number || null,
+      nf_number: o.nf_number || null,
+      customer_state: o.customer_state || null,
+      tracking_code: o.tracking_code || null,
+      tracking_status: Number(o.tracking_status),
+      tracking_desc: o.tracking_desc || null,
+      tracking_date: o.tracking_date || null,
+    }))
+
   return (
     <div className="flex flex-col h-full">
       <Header title="Logística" description="Análise de frete, transportadoras e rotas" />
@@ -144,6 +169,14 @@ export default async function LogisticaPage({
         period={period}
         marketplace={params.marketplace}
         marketplaceOptions={distinctMarketplaces}
+        tracking={{
+          total: withTracking.length,
+          entregues,
+          emEntrega,
+          emTransito,
+          comProblema,
+          recent: recentTracking,
+        }}
       />
     </div>
   )

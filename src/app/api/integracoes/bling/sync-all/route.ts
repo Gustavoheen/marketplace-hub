@@ -5,6 +5,7 @@ import { getConnection, upsertConnection } from '@/lib/db/queries/connections'
 import { blingGetTodosProdutos, blingGetTodosPedidos, blingRefreshToken, buildLojaMarketplaceMap, detectMarketplaceByNumero, normalizarSituacao } from '@/lib/integrations/bling'
 import { bulkUpsertProducts } from '@/lib/db/queries/products'
 import { createServiceClient } from '@/lib/supabase/service'
+import { extractNfFromBling } from '@/lib/integrations/totalexpress'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
             shipping_carrier: p.transporte?.transportador?.nome || p.transporte?.transportadora?.nome || null,
             shipping_cost: Number(p.transporte?.frete || 0) || null,
             discount_total: Number(p.desconto?.valor || 0) || null,
+            ...extractNfFromBling(p),
             raw_data: p,
             order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
             synced_at: new Date().toISOString(),
