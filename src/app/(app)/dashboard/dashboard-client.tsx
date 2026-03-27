@@ -673,27 +673,59 @@ export function DashboardClient() {
                 .map(item => {
                   const total = data!.statusBreakdown.reduce((s, i) => s + i.count, 0)
                   const pct = total > 0 ? (item.count / total) * 100 : 0
-                  const color = item.status.includes('pago') || item.status === 'delivered'
-                    ? 'var(--emerald)'
-                    : item.status.includes('cancel')
-                    ? '#F87171'
+                  const s = item.status.toLowerCase()
+                  const color =
+                    s.includes('entregue') || s.includes('atendido')
+                      ? '#10D48A'
+                    : s.includes('enviado')
+                      ? '#38BDF8'
+                    : s.includes('pronto para envio') || s.includes('pronto para retirada') || s.includes('entrega agendada')
+                      ? '#818CF8'
+                    : s.includes('assistência expedida') || s.includes('assistencia expedida')
+                      ? '#7C3AED'
+                    : s.includes('assistência faturada') || s.includes('assistencia faturada')
+                      ? '#8B5CF6'
+                    : s.includes('assist')
+                      ? '#A855F7'
+                    : s.includes('cancel') || s.includes('devolvido')
+                      ? '#F87171'
+                    : s.includes('em produção') || s.includes('em producao')
+                      ? '#F97316'
+                    : s.includes('em andamento')
+                      ? '#06C8D9'
+                    : s.includes('aguardando')
+                      ? '#FBBF24'
+                    : s.includes('em aberto') || s.includes('em digitação') || s.includes('pendente')
+                      ? '#F59E0B'
                     : 'var(--cyan)'
+                  const badge =
+                    s.includes('entregue') || s.includes('atendido')   ? 'rgba(16,212,138,0.12)'
+                    : s.includes('enviado')                             ? 'rgba(56,189,248,0.12)'
+                    : s.includes('pronto') || s.includes('agendada')   ? 'rgba(99,102,241,0.12)'
+                    : s.includes('assist')                             ? 'rgba(168,85,247,0.12)'
+                    : s.includes('cancel') || s.includes('devolvido')  ? 'rgba(248,113,113,0.12)'
+                    : s.includes('produção') || s.includes('producao') ? 'rgba(249,115,22,0.12)'
+                    : s.includes('andamento')                          ? 'rgba(6,200,217,0.12)'
+                    : s.includes('aguardando')                         ? 'rgba(251,191,36,0.12)'
+                    : 'rgba(255,255,255,0.04)'
                   return (
-                    <div key={item.status}>
-                      <div className="flex justify-between text-[11px] mb-1">
-                        <span style={{ color: 'var(--muted-foreground)' }} className="capitalize">
-                          {item.status}
-                        </span>
-                        <span style={{ color: '#E8EDF5' }} className="font-semibold">
-                          {item.count}
-                        </span>
-                      </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <div key={item.status} className="flex items-center gap-3">
+                      <span
+                        className="text-[11px] font-medium px-2 py-0.5 rounded-md capitalize shrink-0 w-44 truncate"
+                        style={{ background: badge, color }}
+                        title={item.status}
+                      >
+                        {item.status}
+                      </span>
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
                         <div
                           className="h-full rounded-full transition-all duration-500"
                           style={{ width: `${pct}%`, background: color }}
                         />
                       </div>
+                      <span className="text-[11px] font-semibold w-8 text-right shrink-0" style={{ color: '#E8EDF5' }}>
+                        {item.count}
+                      </span>
                     </div>
                   )
                 })}
