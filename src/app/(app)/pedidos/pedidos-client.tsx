@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Search, ChevronLeft, ChevronRight, ShoppingBag, ExternalLink } from 'lucide-react'
 
 interface Order {
@@ -143,6 +143,12 @@ export function PedidosClient({
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
   const [search, setSearch] = useState(filters.q || '')
+
+  // Auto-refresh: busca novos pedidos do servidor a cada 5 minutos
+  useEffect(() => {
+    const interval = setInterval(() => router.refresh(), 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [router])
 
   const totalPages = Math.ceil(total / pageSize)
 

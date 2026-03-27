@@ -1,18 +1,16 @@
-// Total Express WebService v2.4 — SOAP integration
-// Endpoint: https://edi.totalexpress.com.br/webservice24.php
-// Protocol: SOAP 1.1 + HTTP Basic Auth
+// Total Express REST API — Previsão de entrega e ocorrência
+// Endpoint: https://edi.totalexpress.com.br/previsao_entrega_atualizada.php
+// Auth: HTTP Basic Auth (credenciais do portal ICS)
 
-const ENDPOINT = 'https://edi.totalexpress.com.br/webservice24.php'
+const ENDPOINT = 'https://edi.totalexpress.com.br/previsao_entrega_atualizada.php'
 
 function getCredentials() {
   const login = process.env.TOTALEXPRESS_LOGIN
   const senha = process.env.TOTALEXPRESS_PASSWORD
+  const remetenteId = process.env.TOTALEXPRESS_REMETENTE_ID
   if (!login || !senha) throw new Error('TOTALEXPRESS_LOGIN / TOTALEXPRESS_PASSWORD não configurados')
-  return { login, senha }
-}
-
-function basicAuth(login: string, senha: string) {
-  return 'Basic ' + Buffer.from(`${login}:${senha}`).toString('base64')
+  if (!remetenteId) throw new Error('TOTALEXPRESS_REMETENTE_ID não configurado')
+  return { login, senha, remetenteId }
 }
 
 // ── Status codes ──────────────────────────────────────────────────────────────
@@ -56,146 +54,156 @@ export type TeTrackingEvent = {
   codStatus: number
   descStatus: string
   dataStatus: string
+  prevEntrega?: string
+  prevEntregaAtualizada?: string
 }
 
-// ── ObterTracking ─────────────────────────────────────────────────────────────
+// ── Parse REST response ───────────────────────────────────────────────────────
 
-function buildObterTrackingEnvelope(login: string, senha: string, dataConsulta?: string): string {
-  const dateTag = dataConsulta
-    ? `<DataConsulta xsi:type="xsd:date">${dataConsulta}</DataConsulta>`
-    : ''
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<SOAP-ENV:Envelope
-  xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
-  xmlns:ns1="urn:ObterTracking"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xmlns:ns2="http://edi.totalexpress.com.br/soap/webservice_v24.total"
-  xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
-  xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
-  SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-  <SOAP-ENV:Header>
-    <wsse:Security>
-      <wsse:UsernameToken>
-        <wsse:Username>${login}</wsse:Username>
-        <wsse:Password>${senha}</wsse:Password>
-      </wsse:UsernameToken>
-    </wsse:Security>
-  </SOAP-ENV:Header>
-  <SOAP-ENV:Body>
-    <ns1:ObterTracking>
-      <ObterTrackingRequest xsi:type="ns2:ObterTrackingRequest">
-        ${dateTag}
-      </ObterTrackingRequest>
-    </ns1:ObterTracking>
-  </SOAP-ENV:Body>
-</SOAP-ENV:Envelope>`
+type TeRestItem = {
+  pedido?: unknown
+  id_cliente?: unknown
+  awb?: unknown
+  nfiscal?: unknown
+  detalhes?: {
+    dataPrev?: { PrevEntrega?: string; PrevEntregaAtualizada?: string }
+    statusDeEncomenda?: Array<{ statusid?: unknown; statusId?: unknown; status?: unknown; data?: unknown }>
+  }
 }
 
-/** Busca eventos de tracking da Total Express. Se não informar data, retorna lotes pendentes. */
-export async function obterTracking(dataConsulta?: string): Promise<TeTrackingEvent[]> {
-  const { login, senha } = getCredentials()
+function parseRestResponse(raw: unknown): TeTrackingEvent[] {
+  const events: TeTrackingEvent[] = []
 
-  // Tenta 3 variações de autenticação em sequência
-  const auth = basicAuth(login, senha)
-  const attempts: Array<{ body: string; extraHeaders: Record<string, string> }> = [
-    // 1. WS-Security no envelope + HTTP Basic
-    { body: buildObterTrackingEnvelope(login, senha, dataConsulta), extraHeaders: { Authorization: auth } },
-    // 2. Somente HTTP Basic (sem WS-Security no envelope)
-    { body: buildObterTrackingEnvelopeSemAuth(dataConsulta), extraHeaders: { Authorization: auth } },
-    // 3. WS-Security no envelope sem HTTP Basic
-    { body: buildObterTrackingEnvelope(login, senha, dataConsulta), extraHeaders: {} },
-  ]
-
-  let lastXml = ''
-  for (const attempt of attempts) {
-    const res = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '', ...attempt.extraHeaders },
-      body: attempt.body,
-    })
-    const xml = await res.text()
-    lastXml = xml
-
-    if (res.ok || res.status === 500) {
-      // 200 = sucesso, 500 = SOAP Fault — ambos têm conteúdo útil
-      if (xml.includes('faultstring')) {
-        const fault = extractTag(xml, 'faultstring')
-        throw new Error(`Total Express SOAP Fault: ${fault || xml.slice(0, 800)}`)
-      }
-      if (res.ok) return parseObterTrackingResponse(xml)
+  // Normaliza para array — pode vir como array, como { data: [...] }, ou como objeto único
+  let items: TeRestItem[]
+  if (Array.isArray(raw)) {
+    items = raw
+  } else if (raw && typeof raw === 'object') {
+    const r = raw as Record<string, unknown>
+    if (Array.isArray(r.data)) {
+      items = r.data as TeRestItem[]
+    } else if (r.pedido !== undefined || r.awb !== undefined) {
+      items = [r as TeRestItem]
+    } else {
+      return []
     }
-
-    if (res.status !== 401) break
+  } else {
+    return []
   }
 
-  const fault = extractTag(lastXml, 'faultstring')
-  throw new Error(`Total Express erro: ${fault || lastXml.slice(0, 800)}`)
-}
+  for (const item of items) {
+    const awb = String(item.awb || '')
+    const pedido = String(item.pedido || '')
+    const notaFiscal = String(item.nfiscal || '')
+    const prevEntrega = item.detalhes?.dataPrev?.PrevEntrega
+    const prevEntregaAtualizada = item.detalhes?.dataPrev?.PrevEntregaAtualizada
 
-function buildObterTrackingEnvelopeSemAuth(dataConsulta?: string): string {
-  const dateTag = dataConsulta
-    ? `<DataConsulta xsi:type="xsd:date">${dataConsulta}</DataConsulta>`
-    : ''
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<SOAP-ENV:Envelope
-  xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
-  xmlns:ns1="urn:ObterTracking"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xmlns:ns2="http://edi.totalexpress.com.br/soap/webservice_v24.total"
-  xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
-  SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-  <SOAP-ENV:Body>
-    <ns1:ObterTracking>
-      <ObterTrackingRequest xsi:type="ns2:ObterTrackingRequest">
-        ${dateTag}
-      </ObterTrackingRequest>
-    </ns1:ObterTracking>
-  </SOAP-ENV:Body>
-</SOAP-ENV:Envelope>`
-}
-
-function extractTag(xml: string, tag: string): string {
-  const re = new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:[^:>]+:)?${tag}>`, 'i')
-  return xml.match(re)?.[1]?.trim() ?? ''
-}
-
-function extractAllTags(xml: string, tag: string): string[] {
-  const re = new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:[^:>]+:)?${tag}>`, 'gi')
-  const results: string[] = []
-  let m: RegExpExecArray | null
-  while ((m = re.exec(xml)) !== null) results.push(m[1].trim())
-  return results
-}
-
-function parseObterTrackingResponse(xml: string): TeTrackingEvent[] {
-  const codProc = Number(extractTag(xml, 'CodigoProc'))
-  if (codProc !== 1) return [] // não processado ou sem dados
-
-  const events: TeTrackingEvent[] = []
-  const encomendas = extractAllTags(xml, 'EncomendaRetorno')
-
-  for (const enc of encomendas) {
-    const awb = extractTag(enc, 'AWB')
-    const pedido = extractTag(enc, 'Pedido')
-    const notaFiscal = extractTag(enc, 'NotaFiscal')
-    const statusItems = extractAllTags(enc, 'StatusTotal')
-
-    for (const st of statusItems) {
-      const codStatus = Number(extractTag(st, 'CodStatus'))
-      const descStatus = extractTag(st, 'DescStatus') || TE_STATUS[codStatus] || `Status ${codStatus}`
-      const dataStatus = extractTag(st, 'DataStatus')
-      events.push({ awb, pedido, notaFiscal, codStatus, descStatus, dataStatus })
-    }
-
-    // Se não houver StatusTotal, registra apenas o AWB recebido
-    if (statusItems.length === 0 && awb) {
-      events.push({ awb, pedido, notaFiscal, codStatus: 0, descStatus: 'Arquivo recebido', dataStatus: '' })
+    const statusList = item.detalhes?.statusDeEncomenda
+    if (Array.isArray(statusList) && statusList.length > 0) {
+      for (const st of statusList) {
+        const codStatus = Number(st.statusid ?? st.statusId ?? 0)
+        const descStatus = String(st.status || TE_STATUS[codStatus] || `Status ${codStatus}`)
+        const dataStatus = String(st.data || '')
+        events.push({ awb, pedido, notaFiscal, codStatus, descStatus, dataStatus, prevEntrega, prevEntregaAtualizada })
+      }
+    } else if (awb || pedido) {
+      events.push({ awb, pedido, notaFiscal, codStatus: 0, descStatus: 'Arquivo recebido', dataStatus: '', prevEntrega, prevEntregaAtualizada })
     }
   }
 
   return events
+}
+
+// ── obterTracking ─────────────────────────────────────────────────────────────
+
+/**
+ * Busca eventos de tracking da Total Express via REST.
+ * - Se informar data (YYYY-MM-DD), consulta somente aquele dia.
+ * - Se não informar, consulta hoje.
+ */
+export async function obterTracking(dataConsulta?: string): Promise<TeTrackingEvent[]> {
+  const { login, senha, remetenteId } = getCredentials()
+  const auth = 'Basic ' + Buffer.from(`${login}:${senha}`).toString('base64')
+
+  const queryDate = dataConsulta || new Date().toISOString().slice(0, 10)
+
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': auth,
+    },
+    body: JSON.stringify({
+      remetenteId,
+      data_inicial: queryDate,
+      data_final: queryDate,
+    }),
+  })
+
+  const data = await res.json().catch(() => ({})) as Record<string, unknown>
+
+  // code: 0 = credenciais inválidas, code: 400 = erro de argumento/sistema
+  if (data.code === 0 || data.code === 400) {
+    throw new Error(`Total Express erro: ${String(data.data || data.message || JSON.stringify(data))}`)
+  }
+
+  if (!res.ok) {
+    throw new Error(`Total Express HTTP ${res.status}: ${JSON.stringify(data).slice(0, 400)}`)
+  }
+
+  return parseRestResponse(data)
+}
+
+/**
+ * Busca tracking de um pedido específico pelo número do pedido.
+ */
+export async function obterTrackingPorPedido(numeroPedido: string): Promise<TeTrackingEvent[]> {
+  const { login, senha, remetenteId } = getCredentials()
+  const auth = 'Basic ' + Buffer.from(`${login}:${senha}`).toString('base64')
+
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': auth,
+    },
+    body: JSON.stringify({ remetenteId, pedido: numeroPedido }),
+  })
+
+  const data = await res.json().catch(() => ({})) as Record<string, unknown>
+
+  if (data.code === 0 || data.code === 400) {
+    throw new Error(`Total Express erro: ${String(data.data || data.message || JSON.stringify(data))}`)
+  }
+  if (!res.ok) throw new Error(`Total Express HTTP ${res.status}`)
+
+  return parseRestResponse(data)
+}
+
+/**
+ * Busca tracking por AWB.
+ */
+export async function obterTrackingPorAwb(awb: string): Promise<TeTrackingEvent[]> {
+  const { login, senha, remetenteId } = getCredentials()
+  const auth = 'Basic ' + Buffer.from(`${login}:${senha}`).toString('base64')
+
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': auth,
+    },
+    body: JSON.stringify({ remetenteId, awb }),
+  })
+
+  const data = await res.json().catch(() => ({})) as Record<string, unknown>
+
+  if (data.code === 0 || data.code === 400) {
+    throw new Error(`Total Express erro: ${String(data.data || data.message || JSON.stringify(data))}`)
+  }
+  if (!res.ok) throw new Error(`Total Express HTTP ${res.status}`)
+
+  return parseRestResponse(data)
 }
 
 // ── Extração de NF do raw_data do Bling ──────────────────────────────────────

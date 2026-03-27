@@ -332,7 +332,8 @@ export function DashboardClient() {
       if (!res.ok) throw new Error('Failed to fetch')
       return res.json()
     },
-    refetchInterval: 5 * 60 * 1000, // auto-refresh every 5 min
+    refetchInterval: 5 * 60 * 1000,
+    refetchIntervalInBackground: true,
   })
 
   const kpis = data?.kpis
