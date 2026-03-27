@@ -28,7 +28,7 @@ interface Props {
   view: string
   statusOptions: string[]
   marketplaceOptions: string[]
-  tabCounts: { todos: number; pendentes: number; atendidos: number; cancelados: number }
+  tabCounts: { todos: number; pendentes: number; atendidos: number; cancelados: number; assistencia: number }
 }
 
 const PERIODS = [
@@ -43,6 +43,7 @@ const VIEWS = [
   { label: 'Todos', value: 'todos', color: 'var(--cyan)' },
   { label: 'Pendentes', value: 'pendentes', color: '#F59E0B' },
   { label: 'Atendidos', value: 'atendidos', color: 'var(--emerald)' },
+  { label: 'Assistência', value: 'assistencia', color: '#A855F7' },
   { label: 'Cancelados', value: 'cancelados', color: '#F87171' },
 ]
 

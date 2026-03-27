@@ -9,6 +9,7 @@ import { cookies } from 'next/headers'
 export const metadata = { title: 'Pedidos — Marketplace Hub' }
 
 const STATUS_PENDENTE = ['em aberto', 'aguardando pagamento', 'em andamento', 'pendente', 'aguardando confirmacao', 'em producao']
+const STATUS_ASSISTENCIA = ['assistência', 'assistencia', 'assistência faturada', 'assistencia faturada', 'assistência expedida', 'assistencia expedida']
 
 export default async function PedidosPage({
   searchParams,
@@ -66,6 +67,8 @@ export default async function PedidosPage({
     query = query.ilike('status', '%atendido%')
   } else if (view === 'cancelados') {
     query = query.ilike('status', '%cancel%')
+  } else if (view === 'assistencia') {
+    query = query.or(STATUS_ASSISTENCIA.map(s => `status.ilike.%${s}%`).join(','))
   } else if (params.status) {
     query = query.ilike('status', `%${params.status}%`)
   }
@@ -96,6 +99,12 @@ export default async function PedidosPage({
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tid).gte('order_date', dateFilter)
     .ilike('status', '%cancel%')
+
+  const { count: assistenciaCount } = await svc
+    .schema('marketplace').from('orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tid).gte('order_date', dateFilter)
+    .or(STATUS_ASSISTENCIA.map(s => `status.ilike.%${s}%`).join(','))
 
   const { data: statusList } = await svc
     .schema('marketplace').from('orders')
@@ -128,6 +137,7 @@ export default async function PedidosPage({
           pendentes: pendentesCount,
           atendidos: atendidoCount || 0,
           cancelados: canceladoCount || 0,
+          assistencia: assistenciaCount || 0,
         }}
       />
     </div>
