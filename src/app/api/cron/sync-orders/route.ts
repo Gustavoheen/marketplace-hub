@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { blingGetTodosPedidos, blingRefreshToken } from '@/lib/integrations/bling'
+import { blingGetTodosPedidos, blingRefreshToken, normalizarSituacao } from '@/lib/integrations/bling'
 import { upsertConnection } from '@/lib/db/queries/connections'
 
 // Chamado pelo Vercel Cron a cada 2 horas
@@ -91,7 +91,7 @@ function mapBlingOrderRow(tenantId: string, p: any) {
     bling_id: String(p.id),
     order_number: p.numero ? String(p.numero) : null,
     marketplace: p.canal_venda || 'bling',
-    status: p.situacao?.valor || p.situacao?.value || 'unknown',
+    status: normalizarSituacao(p.situacao),
     total_amount: Number(p.total || 0),
     items_count: p.itens?.length || 0,
     items_detail: itemsDetail,

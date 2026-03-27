@@ -321,6 +321,59 @@ export function detectMarketplaceByNumero(lojaId: string, numeroLoja: string): s
   return 'outro'
 }
 
+// ── Status / Situação ─────────────────────────────────────────────────────────
+
+/**
+ * Mapa de IDs de situação do Bling v3 (pedido de venda) → nome legível.
+ * Cobre tanto IDs padrão quanto variações comuns observadas na API.
+ */
+export const BLING_STATUS_MAP: Record<number, string> = {
+  0:  'em digitação',
+  1:  'em aberto',
+  2:  'em andamento',
+  3:  'atendido',
+  4:  'cancelado',
+  5:  'em andamento',
+  6:  'verificado',
+  7:  'aguardando confirmação',
+  8:  'aguardando pagamento',
+  9:  'em produção',
+  10: 'pronto para envio',
+  11: 'enviado',
+  12: 'entregue',
+  13: 'devolvido',
+  14: 'assistência',
+  15: 'assistência faturada',
+  16: 'assistência expedida',
+  17: 'atendido',
+  18: 'cancelado',
+  19: 'em andamento',
+  20: 'aguardando pagamento',
+  21: 'em produção',
+  22: 'assistência',
+  23: 'assistência faturada',
+  24: 'assistência expedida',
+  25: 'pronto para retirada',
+  26: 'entrega agendada',
+}
+
+/**
+ * Extrai o status legível de um campo `situacao` do Bling.
+ * Tenta o valor textual primeiro; cai no mapa de IDs como fallback.
+ */
+export function normalizarSituacao(situacao: unknown): string {
+  if (!situacao) return 'em aberto'
+  if (typeof situacao === 'string') return situacao.toLowerCase()
+  if (typeof situacao === 'number') return BLING_STATUS_MAP[situacao] ?? 'em aberto'
+  const s = situacao as Record<string, unknown>
+  if (s.valor && typeof s.valor === 'string') return s.valor.toLowerCase()
+  if (s.value && typeof s.value === 'string') return s.value.toLowerCase()
+  if (s.nome  && typeof s.nome  === 'string') return s.nome.toLowerCase()
+  const id = Number(s.id ?? s.codigo)
+  if (!isNaN(id) && BLING_STATUS_MAP[id]) return BLING_STATUS_MAP[id]
+  return 'em aberto'
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sleep(ms: number) {

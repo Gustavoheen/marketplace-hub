@@ -82,13 +82,33 @@ function marketplaceStyle(mp: string | null) {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  'em aberto':          { bg: 'rgba(245,158,11,0.12)',   color: '#F59E0B' },
-  'atendido':           { bg: 'rgba(16,212,138,0.12)',   color: '#10D48A' },
-  'cancelado':          { bg: 'rgba(248,113,113,0.12)',  color: '#F87171' },
-  'em andamento':       { bg: 'rgba(6,200,217,0.12)',    color: '#06C8D9' },
-  'aguardando':         { bg: 'rgba(129,140,248,0.12)',  color: '#818CF8' },
-  'em producao':        { bg: 'rgba(249,115,22,0.12)',   color: '#F97316' },
-  'enviado':            { bg: 'rgba(6,200,217,0.12)',    color: '#06C8D9' },
+  // Abertos / pendentes
+  'em aberto':              { bg: 'rgba(245,158,11,0.12)',   color: '#F59E0B' },
+  'em digitação':           { bg: 'rgba(245,158,11,0.10)',   color: '#D97706' },
+  'aguardando confirmação': { bg: 'rgba(251,191,36,0.12)',   color: '#FBBF24' },
+  'aguardando pagamento':   { bg: 'rgba(251,191,36,0.12)',   color: '#FBBF24' },
+  'confirmado':             { bg: 'rgba(34,211,238,0.10)',   color: '#22D3EE' },
+  'verificado':             { bg: 'rgba(34,211,238,0.10)',   color: '#22D3EE' },
+  // Em processo
+  'em andamento':           { bg: 'rgba(6,200,217,0.12)',    color: '#06C8D9' },
+  'em produção':            { bg: 'rgba(249,115,22,0.12)',   color: '#F97316' },
+  'pronto para envio':      { bg: 'rgba(99,102,241,0.12)',   color: '#6366F1' },
+  'pronto para retirada':   { bg: 'rgba(99,102,241,0.12)',   color: '#6366F1' },
+  'entrega agendada':       { bg: 'rgba(99,102,241,0.10)',   color: '#818CF8' },
+  // Enviado / entregue
+  'enviado':                { bg: 'rgba(6,200,217,0.12)',    color: '#06C8D9' },
+  'entregue':               { bg: 'rgba(52,211,153,0.12)',   color: '#34D399' },
+  'atendido':               { bg: 'rgba(16,212,138,0.12)',   color: '#10D48A' },
+  // Assistência
+  'assistência':            { bg: 'rgba(168,85,247,0.12)',   color: '#A855F7' },
+  'assistencia':            { bg: 'rgba(168,85,247,0.12)',   color: '#A855F7' },
+  'assistência faturada':   { bg: 'rgba(139,92,246,0.12)',   color: '#8B5CF6' },
+  'assistencia faturada':   { bg: 'rgba(139,92,246,0.12)',   color: '#8B5CF6' },
+  'assistência expedida':   { bg: 'rgba(109,40,217,0.12)',   color: '#7C3AED' },
+  'assistencia expedida':   { bg: 'rgba(109,40,217,0.12)',   color: '#7C3AED' },
+  // Finalizados negativos
+  'cancelado':              { bg: 'rgba(248,113,113,0.12)',  color: '#F87171' },
+  'devolvido':              { bg: 'rgba(239,68,68,0.12)',    color: '#EF4444' },
 }
 
 function statusStyle(s: string | null) {

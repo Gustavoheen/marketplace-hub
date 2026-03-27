@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserWithTenant } from '@/lib/db/queries/tenants'
 import { getConnection, upsertConnection } from '@/lib/db/queries/connections'
-import { blingGetTodosProdutos, blingGetTodosPedidos, blingRefreshToken, buildLojaMarketplaceMap, detectMarketplaceByNumero } from '@/lib/integrations/bling'
+import { blingGetTodosProdutos, blingGetTodosPedidos, blingRefreshToken, buildLojaMarketplaceMap, detectMarketplaceByNumero, normalizarSituacao } from '@/lib/integrations/bling'
 import { bulkUpsertProducts } from '@/lib/db/queries/products'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
             bling_id: String(p.id),
             order_number: p.numero ? String(p.numero) : null,
             marketplace,
-            status: p.situacao?.valor || p.situacao?.value || 'unknown',
+            status: normalizarSituacao(p.situacao),
             total_amount: Number(p.total || 0),
             customer_name: p.contato?.nome || null,
             customer_state: p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null,
