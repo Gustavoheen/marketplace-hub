@@ -6,11 +6,19 @@ import { cookies } from 'next/headers'
 import { getConnection, upsertConnection } from '@/lib/db/queries/connections'
 import { blingRefreshToken, blingGetPedidoDetalhe } from '@/lib/integrations/bling'
 
-const NF_REGEX = /\bNF\s*:?\s*(\d+)/i
+// Padrões aceitos nas observações (ordem de prioridade):
+// 1. "NF 1500", "NF:1500", "nf 1500"
+// 2. "nota 1500", "nota: 1500"
+// 3. Texto que é SOMENTE um número (ex: "1500")
+const NF_PATTERNS = [
+  /\bNF\s*:?\s*(\d+)/i,
+  /\bnota\s*:?\s*(\d+)/i,
+  /^\s*(\d+)\s*$/,
+]
 
 /**
  * Extrai o número da NF de assistência das ocorrências do pedido Bling.
- * Busca nos campos `observacoes` e `descricao` de cada ocorrência pelo padrão "NF 1234".
+ * Aceita: "NF 1500", "nota 1500", ou texto que seja apenas o número.
  */
 function extractNfAssistencia(detail: any): string | null {
   const ocorrencias: any[] =
@@ -21,8 +29,11 @@ function extractNfAssistencia(detail: any): string | null {
   for (const oc of ocorrencias) {
     const textos = [oc?.observacoes, oc?.descricao, oc?.obs].filter(Boolean)
     for (const texto of textos) {
-      const match = String(texto).match(NF_REGEX)
-      if (match?.[1]) return match[1]
+      const str = String(texto).trim()
+      for (const pattern of NF_PATTERNS) {
+        const match = str.match(pattern)
+        if (match?.[1]) return match[1]
+      }
     }
   }
   return null
