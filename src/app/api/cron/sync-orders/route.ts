@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { blingGetTodosPedidos, blingRefreshToken, normalizarSituacao } from '@/lib/integrations/bling'
+import { blingGetTodosPedidos, blingRefreshToken, normalizarSituacao, buildLojaMarketplaceMap, detectMarketplaceByNumero } from '@/lib/integrations/bling'
 import { upsertConnection } from '@/lib/db/queries/connections'
 
 // Chamado pelo Vercel Cron a cada 2 horas
@@ -48,12 +48,15 @@ export async function GET(request: NextRequest) {
         accessToken = fresh.accessToken
       }
 
-      const pedidos = await blingGetTodosPedidos(accessToken)
+      const [pedidos, lojaMap] = await Promise.all([
+        blingGetTodosPedidos(accessToken),
+        buildLojaMarketplaceMap(accessToken),
+      ])
       if (!pedidos.length) continue
 
       // Upsert orders em batches de 50 — usando schema existente
       for (let i = 0; i < pedidos.length; i += 50) {
-        const batch = pedidos.slice(i, i + 50).map((p: any) => mapBlingOrderRow(tenantId, p))
+        const batch = pedidos.slice(i, i + 50).map((p: any) => mapBlingOrderRow(tenantId, p, lojaMap))
 
         await svc
           .schema('marketplace')
@@ -74,7 +77,7 @@ export async function GET(request: NextRequest) {
   })
 }
 
-function mapBlingOrderRow(tenantId: string, p: any) {
+function mapBlingOrderRow(tenantId: string, p: any, lojaMap: Record<string, string> = {}) {
   const itemsDetail = Array.isArray(p.itens)
     ? p.itens.map((item: any) => ({
         sku: item.codigo || null,
@@ -90,7 +93,7 @@ function mapBlingOrderRow(tenantId: string, p: any) {
     source: 'bling',
     bling_id: String(p.id),
     order_number: p.numero ? String(p.numero) : null,
-    marketplace: p.canal_venda || 'bling',
+    marketplace: lojaMap[String(p.loja?.id ?? '0')] ?? detectMarketplaceByNumero(String(p.loja?.id ?? '0'), p.numeroLoja ?? '') ?? p.canal_venda ?? 'bling',
     status: normalizarSituacao(p.situacao),
     total_amount: Number(p.total || 0),
     items_count: p.itens?.length || 0,
