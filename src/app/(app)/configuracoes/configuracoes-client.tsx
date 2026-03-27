@@ -31,6 +31,9 @@ export function ConfiguracoesClient({ tenant }: Props) {
   const [fillingStates, setFillingStates] = useState(false)
   const [statesMsg, setStatesMsg] = useState('')
   const [statesRemaining, setStatesRemaining] = useState<number | null>(null)
+  const [fillingNfAssist, setFillingNfAssist] = useState(false)
+  const [nfAssistMsg, setNfAssistMsg] = useState('')
+  const [nfAssistRemaining, setNfAssistRemaining] = useState<number | null>(null)
 
   const defaultAliquota = REGIME_OPTIONS.find(r => r.value === regime)?.aliquota ?? 6
 
@@ -89,6 +92,27 @@ export function ConfiguracoesClient({ tenant }: Props) {
       setStatesMsg(`Erro: ${e.message}`)
     } finally {
       setFillingStates(false)
+    }
+  }
+
+  async function handleFillNfAssist() {
+    setFillingNfAssist(true)
+    setNfAssistMsg('')
+    try {
+      const res = await fetch('/api/admin/backfill-nf-assistencia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchSize: 50 }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro')
+      setNfAssistRemaining(data.remaining)
+      const notFound = data.not_found?.length ? ` (${data.not_found.length} sem NF nas obs)` : ''
+      setNfAssistMsg(`✓ ${data.updated} preenchidos. Faltam: ${data.remaining}${notFound}`)
+    } catch (e: any) {
+      setNfAssistMsg(`Erro: ${e.message}`)
+    } finally {
+      setFillingNfAssist(false)
     }
   }
 
@@ -214,6 +238,35 @@ export function ConfiguracoesClient({ tenant }: Props) {
           {statesMsg && (
             <span className="text-[12px]" style={{ color: statesMsg.startsWith('Erro') ? '#F87171' : '#10D48A' }}>
               {statesMsg}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Manutenção: NF de assistência ── */}
+      <div className="rounded-2xl p-5 space-y-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <h2 className="text-[14px] font-semibold" style={{ color: '#E8EDF5' }}>NF de Assistência (Rastreamento)</h2>
+        <p className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+          Pedidos com status <strong style={{ color: '#A855F7' }}>Assistência Faturada</strong> geram uma nova NF no Bling.
+          Este processo lê as ocorrências de cada pedido e extrai o número da NF anotado no campo de observações
+          (padrão: "NF 1500"). Assim o rastreamento da Total Express passa a funcionar para essas remessas.
+          {nfAssistRemaining !== null && nfAssistRemaining > 0 && (
+            <span className="font-semibold" style={{ color: '#F59E0B' }}> Faltam {nfAssistRemaining}.</span>
+          )}
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleFillNfAssist}
+            disabled={fillingNfAssist || nfAssistRemaining === 0}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-semibold transition-all disabled:opacity-50"
+            style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', color: '#A855F7' }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${fillingNfAssist ? 'animate-spin' : ''}`} />
+            {fillingNfAssist ? 'Buscando ocorrências...' : 'Preencher NF Assistência (lote 50)'}
+          </button>
+          {nfAssistMsg && (
+            <span className="text-[12px]" style={{ color: nfAssistMsg.startsWith('Erro') ? '#F87171' : '#10D48A' }}>
+              {nfAssistMsg}
             </span>
           )}
         </div>

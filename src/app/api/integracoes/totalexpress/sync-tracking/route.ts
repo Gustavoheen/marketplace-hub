@@ -41,29 +41,32 @@ export async function POST(request: NextRequest) {
   const { data: orders } = await svc
     .schema('marketplace')
     .from('orders')
-    .select('id, order_number, nf_number, tracking_date')
+    .select('id, order_number, nf_number, nf_assistencia, tracking_date')
     .eq('tenant_id', tenantId)
     .or([
       pedidoNums.length ? `order_number.in.(${pedidoNums.map(n => `"${n}"`).join(',')})` : null,
       nfNums.length ? `nf_number.in.(${nfNums.map(n => `"${n}"`).join(',')})` : null,
+      nfNums.length ? `nf_assistencia.in.(${nfNums.map(n => `"${n}"`).join(',')})` : null,
     ].filter(Boolean).join(','))
 
   if (!orders?.length) {
     return NextResponse.json({ updated: 0, message: 'Nenhum pedido correspondente encontrado' })
   }
 
-  // Indexar por order_number e nf_number para lookup rápido
+  // Indexar por order_number, nf_number e nf_assistencia para lookup rápido
   const byOrderNum: Record<string, string> = {}
   const byNfNum: Record<string, string> = {}
+  const byNfAssistencia: Record<string, string> = {}
   for (const o of orders) {
     if (o.order_number) byOrderNum[o.order_number] = o.id
     if (o.nf_number) byNfNum[o.nf_number] = o.id
+    if (o.nf_assistencia) byNfAssistencia[o.nf_assistencia] = o.id
   }
 
   // Para cada pedido, pegar o evento mais recente (maior dataStatus)
   const latestByOrder: Record<string, typeof events[0]> = {}
   for (const ev of events) {
-    const orderId = byOrderNum[ev.pedido] ?? byNfNum[ev.notaFiscal]
+    const orderId = byOrderNum[ev.pedido] ?? byNfNum[ev.notaFiscal] ?? byNfAssistencia[ev.notaFiscal]
     if (!orderId) continue
     const current = latestByOrder[orderId]
     if (!current || (ev.dataStatus && ev.dataStatus > (current.dataStatus ?? ''))) {
