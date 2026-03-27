@@ -1,12 +1,20 @@
 {
   "crons": [
     {
-      "path": "/api/cron/buybox-monitor",
-      "schedule": "0 */6 * * *"
-    },
-    {
       "path": "/api/cron/sync-orders",
       "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-tracking",
+      "schedule": "30 */3 * * *"
+    },
+    {
+      "path": "/api/cron/backfill-nf-assistencia",
+      "schedule": "15 */4 * * *"
+    },
+    {
+      "path": "/api/cron/buybox-monitor",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
