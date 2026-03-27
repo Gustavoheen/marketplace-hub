@@ -33,7 +33,7 @@ export default async function LogisticaPage({
   const startDate = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : null
 
   let orderQuery = svc.schema('marketplace').from('orders')
-    .select('id, order_date, marketplace, status, total_amount, shipping_cost, customer_state, raw_data')
+    .select('id, order_date, marketplace, status, total_amount, shipping_cost, customer_state, shipping_carrier')
     .eq('tenant_id', tenantId!)
     .order('order_date', { ascending: false })
     .limit(5000)
@@ -110,16 +110,10 @@ export default async function LogisticaPage({
     .map(([state, v]) => ({ state, orders: v.orders, frete: Math.round(v.frete * 100) / 100, freteMedia: v.orders > 0 ? Math.round((v.frete / v.orders) * 100) / 100 : 0 }))
     .sort((a, b) => b.frete - a.frete)
 
-  // ── Transportadoras (from raw_data) ───────────────────────────────────────
+  // ── Transportadoras ───────────────────────────────────────────────────────
   const carrierMap: Record<string, { orders: number; frete: number }> = {}
   for (const o of orders) {
-    const raw = o.raw_data as any
-    const carrier =
-      raw?.transporte?.transportador?.nome ||
-      raw?.transporte?.nomeTransportador ||
-      raw?.data?.transporte?.transportador?.nome ||
-      null
-    const key = carrier ? String(carrier).trim() : 'Não informado'
+    const key = o.shipping_carrier ? String(o.shipping_carrier).trim() : 'Não informado'
     if (!carrierMap[key]) carrierMap[key] = { orders: 0, frete: 0 }
     carrierMap[key].orders += 1
     carrierMap[key].frete += Number(o.shipping_cost || 0)
