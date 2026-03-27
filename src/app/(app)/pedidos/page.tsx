@@ -8,7 +8,6 @@ import { cookies } from 'next/headers'
 
 export const metadata = { title: 'Pedidos — Marketplace Hub' }
 
-// Status que indicam pedido pendente/aberto
 const STATUS_PENDENTE = ['em aberto', 'aguardando pagamento', 'em andamento', 'pendente', 'aguardando confirmacao', 'em producao']
 
 export default async function PedidosPage({
@@ -43,25 +42,24 @@ export default async function PedidosPage({
   const pageSize = 25
   const offset = (page - 1) * pageSize
   const period = params.period || '30d'
-  const view = params.view || 'todos' // todos | pendentes | atendidos | cancelados
+  const view = params.view || 'todos'
 
-  // Data de corte pelo período
   const days = period === '7d' ? 7 : period === '90d' ? 90 : period === '1y' ? 365 : period === 'all' ? 0 : 30
   const startDate = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : null
 
+  // ── Query principal (sem raw_data para evitar payload pesado) ──────────────
   let query = svc
     .schema('marketplace')
     .from('orders')
-    .select('id, bling_id, order_number, marketplace, status, total_amount, customer_name, customer_state, order_date, shipping_cost, discount_total, raw_data', { count: 'exact' })
+    .select('id, bling_id, order_number, marketplace, status, total_amount, customer_name, customer_state, order_date, shipping_cost, discount_total', { count: 'exact' })
     .eq('tenant_id', tenantId)
     .order('order_date', { ascending: false })
     .range(offset, offset + pageSize - 1)
 
   if (startDate) query = query.gte('order_date', startDate)
   if (params.q) query = query.ilike('customer_name', `%${params.q}%`)
-  if (params.marketplace) query = query.eq('marketplace', params.marketplace)
+  if (params.marketplace) query = query.eq('marketplace', params.marketplace as any)
 
-  // Filtro por aba
   if (view === 'pendentes') {
     query = query.or(STATUS_PENDENTE.map(s => `status.ilike.%${s}%`).join(','))
   } else if (view === 'atendidos') {
@@ -72,46 +70,45 @@ export default async function PedidosPage({
     query = query.ilike('status', `%${params.status}%`)
   }
 
-  const { data: rawOrders, count } = await query
+  const { data: orders, count, error: ordersError } = await query
 
-  // Normaliza status: se "unknown", extrai do raw_data.situacao.valor; exclui raw_data do payload
-  const orders = (rawOrders || []).map((o: any) => {
-    const status = (!o.status || o.status === 'unknown')
-      ? (o.raw_data?.situacao?.valor || o.raw_data?.data?.situacao?.valor || o.status)
-      : o.status
-    const { raw_data: _rd, ...rest } = o
-    return { ...rest, status }
-  })
-
-  // Contadores por aba (no período selecionado)
-  const baseCountQuery = (statusFilter: string | null) => {
-    let q = svc.schema('marketplace').from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId!)
-    if (startDate) q = q.gte('order_date', startDate)
-    if (statusFilter) q = q.ilike('status', `%${statusFilter}%`)
-    return q
+  if (ordersError) {
+    console.error('[pedidos] query error:', ordersError)
   }
 
-  const [
-    { count: totalCount },
-    { count: atendidoCount },
-    { count: canceladoCount },
-    { data: statusList },
-    { data: marketplaceList },
-  ] = await Promise.all([
-    svc.schema('marketplace').from('orders').select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId).gte('order_date', startDate || '2000-01-01'),
-    baseCountQuery('atendido'),
-    baseCountQuery('cancel'),
-    svc.schema('marketplace').from('orders').select('status').eq('tenant_id', tenantId).limit(1000),
-    svc.schema('marketplace').from('orders').select('marketplace').eq('tenant_id', tenantId).limit(1000),
-  ])
+  // ── Contagens e filtros (queries leves, sem JOIN) ──────────────────────────
+  const tid = tenantId
+  const dateFilter = startDate || '2000-01-01'
 
-  const distinctStatus = [...new Set((statusList || []).map(s => s.status).filter(Boolean))].sort()
-  const distinctMarketplaces = [...new Set((marketplaceList || []).map(m => m.marketplace).filter(Boolean))].sort()
+  const { count: totalCount } = await svc
+    .schema('marketplace').from('orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tid).gte('order_date', dateFilter)
 
-  const pendentesCount = (totalCount || 0) - (atendidoCount || 0) - (canceladoCount || 0)
+  const { count: atendidoCount } = await svc
+    .schema('marketplace').from('orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tid).gte('order_date', dateFilter)
+    .ilike('status', '%atendido%')
+
+  const { count: canceladoCount } = await svc
+    .schema('marketplace').from('orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tid).gte('order_date', dateFilter)
+    .ilike('status', '%cancel%')
+
+  const { data: statusList } = await svc
+    .schema('marketplace').from('orders')
+    .select('status').eq('tenant_id', tid).limit(500)
+
+  const { data: marketplaceList } = await svc
+    .schema('marketplace').from('orders')
+    .select('marketplace').eq('tenant_id', tid).limit(500)
+
+  const distinctStatus = [...new Set((statusList || []).map((s: any) => s.status).filter(Boolean))].sort()
+  const distinctMarketplaces = [...new Set((marketplaceList || []).map((m: any) => m.marketplace).filter(Boolean))].sort()
+
+  const pendentesCount = Math.max(0, (totalCount || 0) - (atendidoCount || 0) - (canceladoCount || 0))
 
   return (
     <div className="flex flex-col h-full">
@@ -128,7 +125,7 @@ export default async function PedidosPage({
         marketplaceOptions={distinctMarketplaces}
         tabCounts={{
           todos: totalCount || 0,
-          pendentes: Math.max(0, pendentesCount),
+          pendentes: pendentesCount,
           atendidos: atendidoCount || 0,
           cancelados: canceladoCount || 0,
         }}
