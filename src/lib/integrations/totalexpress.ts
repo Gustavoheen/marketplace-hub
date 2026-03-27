@@ -60,7 +60,7 @@ export type TeTrackingEvent = {
 
 // ── ObterTracking ─────────────────────────────────────────────────────────────
 
-function buildObterTrackingEnvelope(dataConsulta?: string): string {
+function buildObterTrackingEnvelope(login: string, senha: string, dataConsulta?: string): string {
   const dateTag = dataConsulta
     ? `<DataConsulta xsi:type="xsd:date">${dataConsulta}</DataConsulta>`
     : ''
@@ -72,7 +72,16 @@ function buildObterTrackingEnvelope(dataConsulta?: string): string {
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:ns2="http://edi.totalexpress.com.br/soap/webservice_v24.total"
   xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+  xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
   SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <SOAP-ENV:Header>
+    <wsse:Security>
+      <wsse:UsernameToken>
+        <wsse:Username>${login}</wsse:Username>
+        <wsse:Password>${senha}</wsse:Password>
+      </wsse:UsernameToken>
+    </wsse:Security>
+  </SOAP-ENV:Header>
   <SOAP-ENV:Body>
     <ns1:ObterTracking>
       <ObterTrackingRequest xsi:type="ns2:ObterTrackingRequest">
@@ -86,20 +95,21 @@ function buildObterTrackingEnvelope(dataConsulta?: string): string {
 /** Busca eventos de tracking da Total Express. Se não informar data, retorna lotes pendentes. */
 export async function obterTracking(dataConsulta?: string): Promise<TeTrackingEvent[]> {
   const { login, senha } = getCredentials()
-  const body = buildObterTrackingEnvelope(dataConsulta)
+  const body = buildObterTrackingEnvelope(login, senha, dataConsulta)
 
+  // Tenta primeiro com WS-Security no envelope; fallback com HTTP Basic Auth
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/xml;charset=UTF-8',
-      'SOAPAction': 'urn:ObterTracking#ObterTracking',
+      'SOAPAction': '',
       'Authorization': basicAuth(login, senha),
     },
     body,
   })
 
   const xml = await res.text()
-  if (!res.ok) throw new Error(`Total Express HTTP ${res.status}: ${xml.slice(0, 200)}`)
+  if (!res.ok) throw new Error(`Total Express HTTP ${res.status}: ${xml.slice(0, 300)}`)
 
   return parseObterTrackingResponse(xml)
 }
