@@ -8,8 +8,31 @@ import { cookies } from 'next/headers'
 
 export const metadata = { title: 'Pedidos — Marketplace Hub' }
 
-const STATUS_PENDENTE = ['em aberto', 'aguardando pagamento', 'em andamento', 'pendente', 'aguardando confirmacao', 'em producao']
-const STATUS_ASSISTENCIA = ['assistência', 'assistencia', 'assistência faturada', 'assistencia faturada', 'assistência expedida', 'assistencia expedida']
+const STATUS_PENDENTE = [
+  'em digitação', 'em digitacao',
+  'em aberto',
+  'em andamento',
+  'pendente',
+  'aguardando confirmação', 'aguardando confirmacao',
+  'aguardando pagamento',
+  'em produção', 'em producao',
+  'verificado',
+  'confirmado',
+]
+const STATUS_ATENDIDO = [
+  'atendido',
+  'entregue',
+  'enviado',
+  'pronto para envio',
+  'pronto para retirada',
+  'entrega agendada',
+]
+const STATUS_CANCELADO = ['cancelado', 'devolvido']
+const STATUS_ASSISTENCIA = [
+  'assistência', 'assistencia',
+  'assistência faturada', 'assistencia faturada',
+  'assistência expedida', 'assistencia expedida',
+]
 
 export default async function PedidosPage({
   searchParams,
@@ -77,9 +100,9 @@ export default async function PedidosPage({
   if (view === 'pendentes') {
     query = query.or(STATUS_PENDENTE.map(s => `status.ilike.%${s}%`).join(','))
   } else if (view === 'atendidos') {
-    query = query.ilike('status', '%atendido%')
+    query = query.or(STATUS_ATENDIDO.map(s => `status.ilike.%${s}%`).join(','))
   } else if (view === 'cancelados') {
-    query = query.ilike('status', '%cancel%')
+    query = query.or(STATUS_CANCELADO.map(s => `status.ilike.%${s}%`).join(','))
   } else if (view === 'assistencia') {
     query = query.or(STATUS_ASSISTENCIA.map(s => `status.ilike.%${s}%`).join(','))
   } else if (params.status) {
@@ -105,8 +128,10 @@ export default async function PedidosPage({
   }
 
   const { count: totalCount } = await countQuery()
-  const { count: atendidoCount } = await countQuery().ilike('status', '%atendido%')
-  const { count: canceladoCount } = await countQuery().ilike('status', '%cancel%')
+  const { count: atendidoCount } = await countQuery()
+    .or(STATUS_ATENDIDO.map((s: string) => `status.ilike.%${s}%`).join(','))
+  const { count: canceladoCount } = await countQuery()
+    .or(STATUS_CANCELADO.map((s: string) => `status.ilike.%${s}%`).join(','))
   const { count: assistenciaCount } = await countQuery()
     .or(STATUS_ASSISTENCIA.map((s: string) => `status.ilike.%${s}%`).join(','))
 
