@@ -477,7 +477,17 @@ export function LogisticaClient({
                       return (
                         <tr key={row.id} style={{ borderBottom: i < tracking.recent.length - 1 ? '1px solid var(--sidebar-border)' : 'none' }}>
                           <td className="py-2 pr-4 font-mono" style={{ color: '#E8EDF5' }}>
-                            {row.order_number || '—'}
+                            {(row.order_number || row.nf_number) ? (
+                              <a
+                                href={`https://tracking.totalexpress.com.br/poupup_track.php?pedido=${row.order_number || ''}&nfiscal=${row.nf_number || ''}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:underline"
+                                style={{ color: 'var(--cyan)' }}
+                              >
+                                {row.order_number || '—'}
+                              </a>
+                            ) : '—'}
                           </td>
                           <td className="py-2 pr-4 font-mono" style={{ color: 'var(--muted-foreground)' }}>
                             {row.nf_number || '—'}
