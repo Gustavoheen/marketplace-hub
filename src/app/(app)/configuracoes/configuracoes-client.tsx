@@ -28,6 +28,9 @@ export function ConfiguracoesClient({ tenant }: Props) {
   const [error, setError]         = useState('')
   const [backfilling, setBackfilling] = useState(false)
   const [backfillMsg, setBackfillMsg] = useState('')
+  const [fillingStates, setFillingStates] = useState(false)
+  const [statesMsg, setStatesMsg] = useState('')
+  const [statesRemaining, setStatesRemaining] = useState<number | null>(null)
 
   const defaultAliquota = REGIME_OPTIONS.find(r => r.value === regime)?.aliquota ?? 6
 
@@ -66,6 +69,26 @@ export function ConfiguracoesClient({ tenant }: Props) {
       setBackfillMsg(`Erro: ${e.message}`)
     } finally {
       setBackfilling(false)
+    }
+  }
+
+  async function handleFillStates() {
+    setFillingStates(true)
+    setStatesMsg('')
+    try {
+      const res = await fetch('/api/admin/backfill-states', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchSize: 50 }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro')
+      setStatesRemaining(data.remaining)
+      setStatesMsg(`✓ ${data.updated} atualizados. Faltam: ${data.remaining}`)
+    } catch (e: any) {
+      setStatesMsg(`Erro: ${e.message}`)
+    } finally {
+      setFillingStates(false)
     }
   }
 
@@ -166,6 +189,34 @@ export function ConfiguracoesClient({ tenant }: Props) {
             {error}
           </div>
         )}
+      </div>
+
+      {/* ── Manutenção: preencher estados dos pedidos ── */}
+      <div className="rounded-2xl p-5 space-y-3" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+        <h2 className="text-[14px] font-semibold" style={{ color: '#E8EDF5' }}>Preencher Estado dos Pedidos</h2>
+        <p className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
+          Busca o endereço de entrega de cada pedido no Bling (detalhe individual) e preenche o campo Estado.
+          Processa 50 pedidos por vez — clique várias vezes até zerar o contador.
+          {statesRemaining !== null && statesRemaining > 0 && (
+            <span className="font-semibold" style={{ color: '#F59E0B' }}> Faltam {statesRemaining}.</span>
+          )}
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleFillStates}
+            disabled={fillingStates || statesRemaining === 0}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-semibold transition-all disabled:opacity-50"
+            style={{ background: 'rgba(6,200,217,0.08)', border: '1px solid rgba(6,200,217,0.25)', color: 'var(--cyan)' }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${fillingStates ? 'animate-spin' : ''}`} />
+            {fillingStates ? 'Buscando...' : 'Preencher Estados (lote 50)'}
+          </button>
+          {statesMsg && (
+            <span className="text-[12px]" style={{ color: statesMsg.startsWith('Erro') ? '#F87171' : '#10D48A' }}>
+              {statesMsg}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Manutenção: backfill de status ── */}
