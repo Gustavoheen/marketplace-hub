@@ -72,11 +72,21 @@ const CHANNEL_COLORS = [
 ]
 
 const MARKETPLACE_LABELS: Record<string, string> = {
-  mercadolivre: 'Mercado Livre',
-  shopee: 'Shopee',
-  amazon: 'Amazon',
-  bling: 'Bling',
-  outros: 'Outros',
+  mercadolivre:   'Mercado Livre',
+  shopee:         'Shopee',
+  amazon:         'Amazon',
+  magalu:         'Magalu',
+  americanas:     'Americanas',
+  madeiramadeira: 'Madeira Madeira',
+  webcontinental: 'WebContinental',
+  casas_bahia:    'Casas Bahia',
+  shein:          'Shein',
+  carrefour:      'Carrefour',
+  kabum:          'KaBuM',
+  netshoes:       'Netshoes',
+  bling:          'Bling',
+  outro:          'Outro',
+  outros:         'Outros',
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
