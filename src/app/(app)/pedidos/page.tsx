@@ -64,7 +64,7 @@ export default async function PedidosPage({
   let query = svc
     .schema('marketplace')
     .from('orders')
-    .select('id, bling_id, order_number, marketplace, status, total_amount, customer_name, customer_state, order_date, shipping_cost, discount_total, nf_number, tracking_code', { count: 'exact' })
+    .select('id, bling_id, order_number, marketplace, status, total_amount, customer_name, customer_state, order_date, shipping_cost, discount_total', { count: 'exact' })
     .eq('tenant_id', tenantId)
     .order('order_date', { ascending: false })
     .range(offset, offset + pageSize - 1)

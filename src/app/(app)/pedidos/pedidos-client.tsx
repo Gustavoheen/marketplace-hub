@@ -16,8 +16,8 @@ interface Order {
   order_date: string | null
   shipping_cost: number | null
   discount_total: number | null
-  nf_number: string | null
-  tracking_code: string | null
+  nf_number?: string | null
+  tracking_code?: string | null
 }
 
 interface Props {
