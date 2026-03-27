@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { Search, ChevronLeft, ChevronRight, ShoppingBag, Package } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, ShoppingBag, ExternalLink } from 'lucide-react'
 
 interface Order {
   id: string
@@ -16,6 +16,8 @@ interface Order {
   order_date: string | null
   shipping_cost: number | null
   discount_total: number | null
+  nf_number: string | null
+  tracking_code: string | null
 }
 
 interface Props {
@@ -280,9 +282,20 @@ export function PedidosClient({
                       <p className="text-[13px] font-medium truncate" style={{ color: '#E8EDF5' }}>
                         {order.customer_name || 'Cliente não informado'}
                       </p>
-                      <p className="text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+                      <p className="text-[11px] flex items-center gap-1.5" style={{ color: 'var(--muted-foreground)' }}>
                         #{order.order_number || order.bling_id || order.id.slice(0, 8)} · {fmtDate(order.order_date)}
                         {order.customer_state ? ` · ${order.customer_state}` : ''}
+                        {(order.order_number || order.nf_number) && (
+                          <a
+                            href={`https://tracking.totalexpress.com.br/poupup_track.php?pedido=${order.order_number || ''}&nfiscal=${order.nf_number || ''}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Rastrear na Total Express"
+                            style={{ color: 'var(--cyan)' }}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
                       </p>
                     </div>
                     <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0 capitalize" style={{ background: st.bg, color: st.color }}>
@@ -307,7 +320,7 @@ export function PedidosClient({
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Pedido', 'Cliente', 'Estado', 'Canal', 'Status', 'Total', 'Data'].map(h => (
+                  {['Pedido', 'Cliente', 'Estado', 'Canal', 'Status', 'Total', 'Data', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
                       {h}
                     </th>
@@ -349,6 +362,20 @@ export function PedidosClient({
                       </td>
                       <td className="px-4 py-3 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
                         {fmtDate(order.order_date)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {(order.order_number || order.nf_number) && (
+                          <a
+                            href={`https://tracking.totalexpress.com.br/poupup_track.php?pedido=${order.order_number || ''}&nfiscal=${order.nf_number || ''}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Rastrear na Total Express"
+                            className="flex items-center justify-center h-6 w-6 rounded-md opacity-50 hover:opacity-100 transition-opacity"
+                            style={{ background: 'rgba(6,200,217,0.1)', color: 'var(--cyan)' }}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
                       </td>
                     </tr>
                   )

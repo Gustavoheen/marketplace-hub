@@ -89,7 +89,8 @@ function mapBlingOrderRow(tenantId: string, p: any, lojaMap: Record<string, stri
       }))
     : []
 
-  return {
+  const customerState = p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null
+  const row: Record<string, unknown> = {
     tenant_id: tenantId,
     source: 'bling',
     bling_id: String(p.id),
@@ -100,7 +101,6 @@ function mapBlingOrderRow(tenantId: string, p: any, lojaMap: Record<string, stri
     items_count: p.itens?.length || 0,
     items_detail: itemsDetail,
     customer_name: p.contato?.nome || null,
-    customer_state: p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null,
     shipping_carrier: p.transporte?.transportador?.nome || p.transporte?.transportadora?.nome || null,
     shipping_cost: Number(p.transporte?.frete || 0) || null,
     discount_total: Number(p.desconto?.valor || 0) || null,
@@ -109,4 +109,7 @@ function mapBlingOrderRow(tenantId: string, p: any, lojaMap: Record<string, stri
     order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
     synced_at: new Date().toISOString(),
   }
+  // Não sobrescreve customer_state com null (preserva valor existente no DB)
+  if (customerState) row.customer_state = customerState
+  return row
 }

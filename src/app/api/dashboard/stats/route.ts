@@ -236,13 +236,20 @@ export async function GET(request: NextRequest) {
 
   // ── Geo: pedidos por estado ────────────────────────────────────────────────
   // Busca direto no banco com aggregation (mais eficiente que processar no JS)
-  const { data: stateRows } = await svc
+  let stateQuery = svc
     .schema('marketplace')
     .from('orders')
     .select('customer_state, total_amount')
     .eq('tenant_id', tenantId)
     .gte('order_date', startIso)
     .not('customer_state', 'is', null)
+    .limit(10000)
+
+  if (marketplace !== 'all') {
+    stateQuery = stateQuery.eq('marketplace', marketplace as any)
+  }
+
+  const { data: stateRows } = await stateQuery
 
   const stateMap: Record<string, { orders: number; revenue: number }> = {}
   for (const row of (stateRows || [])) {

@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
           const lojaId = String(p.loja?.id ?? '0')
           const numeroLoja = p.numeroLoja ?? ''
           const marketplace = lojaMap[lojaId] ?? detectMarketplaceByNumero(lojaId, numeroLoja)
-          return {
+          const customerState = p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null
+          const row: Record<string, unknown> = {
             tenant_id: tenantId,
             bling_id: String(p.id),
             order_number: p.numero ? String(p.numero) : null,
@@ -70,7 +71,6 @@ export async function POST(request: NextRequest) {
             status: normalizarSituacao(p.situacao),
             total_amount: Number(p.total || 0),
             customer_name: p.contato?.nome || null,
-            customer_state: p.enderecoEntrega?.uf || p.contato?.endereco?.uf || null,
             shipping_carrier: p.transporte?.transportador?.nome || p.transporte?.transportadora?.nome || null,
             shipping_cost: Number(p.transporte?.frete || 0) || null,
             discount_total: Number(p.desconto?.valor || 0) || null,
@@ -79,6 +79,9 @@ export async function POST(request: NextRequest) {
             order_date: p.data ? new Date(p.data).toISOString() : new Date().toISOString(),
             synced_at: new Date().toISOString(),
           }
+          // Não sobrescreve customer_state com null (preserva valor existente no DB)
+          if (customerState) row.customer_state = customerState
+          return row
         })
         await svc
           .schema('marketplace')
