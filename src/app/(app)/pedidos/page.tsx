@@ -58,7 +58,7 @@ export default async function PedidosPage({
     .range(offset, offset + pageSize - 1)
 
   if (startDate) query = query.gte('order_date', startDate)
-  if (params.q) query = query.ilike('customer_name', `%${params.q}%`)
+  if (params.q) query = query.or(`customer_name.ilike.%${params.q}%,order_number.ilike.%${params.q}%`)
   if (params.marketplace) query = query.eq('marketplace', params.marketplace as any)
 
   if (view === 'pendentes') {
@@ -117,7 +117,7 @@ export default async function PedidosPage({
   const distinctStatus = [...new Set((statusList || []).map((s: any) => s.status).filter(Boolean))].sort()
   const distinctMarketplaces = [...new Set((marketplaceList || []).map((m: any) => m.marketplace).filter(Boolean))].sort()
 
-  const pendentesCount = Math.max(0, (totalCount || 0) - (atendidoCount || 0) - (canceladoCount || 0))
+  const pendentesCount = Math.max(0, (totalCount || 0) - (atendidoCount || 0) - (canceladoCount || 0) - (assistenciaCount || 0))
 
   return (
     <div className="flex flex-col h-full">
