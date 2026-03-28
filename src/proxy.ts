@@ -36,6 +36,8 @@ export async function proxy(request: NextRequest) {
     '/registro',
     '/auth/callback',
     '/compartilhado',
+    '/api/cron/',
+    '/api/admin/',
   ]
   const isPublic = publicPaths.some((p) => pathname.startsWith(p))
 
