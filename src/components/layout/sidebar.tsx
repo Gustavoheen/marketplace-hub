@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Package, ShoppingCart, Link2,
   Tag, Truck, Bot, Share2, Settings, LogOut,
-  TrendingUp, ChevronRight,
+  TrendingUp, ChevronRight, DollarSign, MapPin,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useTenant } from '@/hooks/use-tenant'
@@ -25,6 +25,13 @@ const navGroups = [
       { href: '/produtos', label: 'Produtos', icon: Package },
       { href: '/pedidos', label: 'Pedidos', icon: ShoppingCart },
       { href: '/logistica', label: 'Logística', icon: Truck },
+    ],
+  },
+  {
+    label: 'Análise',
+    items: [
+      { href: '/financeiro', label: 'Financeiro', icon: DollarSign },
+      { href: '/regioes', label: 'Regiões', icon: MapPin },
     ],
   },
   {

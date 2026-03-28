@@ -11,7 +11,7 @@ import {
 import {
   TrendingUp, ShoppingCart, Package,
   Percent, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  RefreshCw, Filter, Database, Wrench,
+  RefreshCw, Filter, Database, Wrench, MapPin, ExternalLink,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -43,6 +43,15 @@ interface DashboardStats {
   pendingAlerts: number
   products: { total: number; lowStock: number; withCost: number }
   lastSync: { bling: string | null; tracking: string | null }
+  recentOrders: Array<{
+    orderNumber: string | null
+    marketplace: string | null
+    customerName: string | null
+    customerState: string | null
+    totalAmount: number
+    status: string | null
+    orderDate: string | null
+  }>
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -122,6 +131,29 @@ function fmtDate(dateStr: string, period: string) {
   const d = new Date(dateStr + 'T00:00:00')
   if (period === '1y') return d.toLocaleDateString('pt-BR', { month: 'short' })
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+const RECENT_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+  entregue:   { bg: 'rgba(16,212,138,0.12)',  color: '#10D48A' },
+  atendido:   { bg: 'rgba(16,212,138,0.12)',  color: '#10D48A' },
+  enviado:    { bg: 'rgba(56,189,248,0.12)',  color: '#38BDF8' },
+  cancelado:  { bg: 'rgba(248,113,113,0.12)', color: '#F87171' },
+  devolvido:  { bg: 'rgba(239,68,68,0.12)',   color: '#EF4444' },
+  assist:     { bg: 'rgba(168,85,247,0.12)',  color: '#A855F7' },
+  pronto:     { bg: 'rgba(99,102,241,0.12)',  color: '#818CF8' },
+  produc:     { bg: 'rgba(249,115,22,0.12)',  color: '#F97316' },
+  andamento:  { bg: 'rgba(6,200,217,0.12)',   color: '#06C8D9' },
+  pendente:   { bg: 'rgba(245,158,11,0.12)',  color: '#F59E0B' },
+  aberto:     { bg: 'rgba(245,158,11,0.12)',  color: '#F59E0B' },
+}
+
+function recentStatusStyle(s: string | null) {
+  if (!s) return { bg: 'rgba(255,255,255,0.05)', color: 'var(--muted-foreground)' }
+  const key = s.toLowerCase()
+  for (const [k, v] of Object.entries(RECENT_STATUS_COLORS)) {
+    if (key.includes(k)) return v
+  }
+  return { bg: 'rgba(129,140,248,0.12)', color: '#818CF8' }
 }
 
 // ── Custom Tooltip ─────────────────────────────────────────────────────────
@@ -838,7 +870,114 @@ export function DashboardClient() {
         </Section>
       </div>
 
-      {/* ── Seção Geográfica ── */}
+      {/* ── Top Regiões + Pedidos Recentes ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
+
+        {/* Top Regiões */}
+        <Section
+          title="Top Regiões"
+          action={
+            <a href="/regioes" className="flex items-center gap-1 text-[11px] transition-opacity hover:opacity-80"
+              style={{ color: 'var(--cyan)' }}>
+              <MapPin className="h-3 w-3" />
+              Ver tudo
+            </a>
+          }
+        >
+          {isLoading ? (
+            <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="shimmer h-7 rounded" />)}</div>
+          ) : !data?.geoBreakdown?.length ? (
+            <div className="flex h-24 items-center justify-center">
+              <p className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>Nenhum estado mapeado ainda.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data.geoBreakdown.slice(0, 8).map((row) => {
+                const maxOrd = data.geoBreakdown[0].orders
+                const pct = (row.orders / maxOrd) * 100
+                const revTotal = data.geoBreakdown.reduce((s, r) => s + r.revenue, 0)
+                const revPct = revTotal > 0 ? ((row.revenue / revTotal) * 100).toFixed(1) : '0'
+                return (
+                  <div key={row.state} className="flex items-center gap-3">
+                    <span className="text-[11px] font-bold w-7 text-center rounded py-0.5"
+                      style={{ background: 'rgba(6,200,217,0.1)', color: 'var(--cyan)', fontFamily: 'var(--font-jetbrains-mono)' }}>
+                      {row.state}
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                      <div className="h-full rounded-full"
+                        style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--cyan), var(--emerald))' }} />
+                    </div>
+                    <span className="text-[11px] font-semibold w-7 text-right shrink-0" style={{ color: '#E8EDF5' }}>
+                      {row.orders}
+                    </span>
+                    <span className="text-[11px] w-12 text-right shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+                      {revPct}%
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Section>
+
+        {/* Pedidos Recentes */}
+        <Section
+          title="Pedidos Recentes"
+          action={
+            <a href="/pedidos" className="flex items-center gap-1 text-[11px] transition-opacity hover:opacity-80"
+              style={{ color: 'var(--cyan)' }}>
+              <ExternalLink className="h-3 w-3" />
+              Ver todos
+            </a>
+          }
+        >
+          {isLoading ? (
+            <div className="space-y-2">{[...Array(6)].map((_, i) => <div key={i} className="shimmer h-8 rounded" />)}</div>
+          ) : !(data?.recentOrders?.length) ? (
+            <div className="flex h-24 items-center justify-center">
+              <p className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>Nenhum pedido no período.</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {(data?.recentOrders || []).map((order, i) => {
+                const st = recentStatusStyle(order.status)
+                const mpLabel = MARKETPLACE_LABELS[order.marketplace || ''] || order.marketplace || '—'
+                const dateStr = order.orderDate
+                  ? new Date(order.orderDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                  : '—'
+                return (
+                  <div key={i} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
+                    style={{ background: 'rgba(255,255,255,0.02)' }}>
+                    <span className="text-[10px] rounded px-1.5 py-0.5 shrink-0 font-semibold"
+                      style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--muted-foreground)', fontFamily: 'var(--font-jetbrains-mono)' }}>
+                      {order.orderNumber ? `#${order.orderNumber}` : '#—'}
+                    </span>
+                    <span className="text-[11px] truncate flex-1 min-w-0" style={{ color: '#E8EDF5' }}>
+                      {order.customerName || mpLabel}
+                    </span>
+                    {order.customerState && (
+                      <span className="text-[10px] shrink-0" style={{ color: 'var(--muted-foreground)' }}>
+                        {order.customerState}
+                      </span>
+                    )}
+                    <span className="text-[11px] shrink-0 font-semibold"
+                      style={{ color: 'var(--emerald)', fontFamily: 'var(--font-jetbrains-mono)' }}>
+                      {fmt(order.totalAmount)}
+                    </span>
+                    <span className="text-[10px] rounded px-1.5 py-0.5 shrink-0"
+                      style={{ background: st.bg, color: st.color }}>
+                      {order.status || '—'}
+                    </span>
+                    <span className="text-[10px] shrink-0" style={{ color: 'var(--sidebar-border)' }}>{dateStr}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Section>
+      </div>
+
+      {/* ── Seção Geográfica (detalhada) ── */}
       <Section
         title="Vendas por Estado"
         action={

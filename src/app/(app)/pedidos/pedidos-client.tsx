@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { useState, useTransition, useEffect } from 'react'
-import { Search, ChevronLeft, ChevronRight, ShoppingBag, ExternalLink } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, ShoppingBag, ExternalLink, Download } from 'lucide-react'
 
 interface Order {
   id: string
@@ -140,6 +140,45 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
+const DEFAULT_COMMISSION: Record<string, number> = {
+  mercadolivre: 11, shopee: 14, amazon: 15, magalu: 12,
+  americanas: 12, casas_bahia: 12, carrefour: 12, shein: 20,
+  webcontinental: 12, madeiramadeira: 12, kabum: 13, netshoes: 14, bling: 0,
+}
+
+function calcCommission(mp: string | null, amount: number | null): number {
+  const key = (mp || '').toLowerCase().replace(/\s+/g, '')
+  const rate = DEFAULT_COMMISSION[key] ?? 12
+  return (Number(amount || 0) * rate) / 100
+}
+
+function exportCsv(orders: Order[], period: string) {
+  const rows = [
+    ['Pedido', 'Cliente', 'Estado', 'Canal', 'Status', 'Total', 'Frete', 'Comissão', 'Data', 'NF', 'Rastreio'],
+    ...orders.map(o => [
+      o.order_number || o.bling_id || o.id.slice(0, 8),
+      o.customer_name || '',
+      o.customer_state || '',
+      MARKETPLACE_LABELS[(o.marketplace || '').toLowerCase()] || o.marketplace || '',
+      o.status || '',
+      String(Number(o.total_amount || 0).toFixed(2)),
+      String(Number(o.shipping_cost || 0).toFixed(2)),
+      calcCommission(o.marketplace, o.total_amount).toFixed(2),
+      o.order_date ? new Date(o.order_date).toLocaleDateString('pt-BR') : '',
+      o.nf_number || '',
+      o.tracking_code || '',
+    ]),
+  ]
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `pedidos_${period}_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function PedidosClient({
   orders, total, page, pageSize, filters, period, view,
   statusOptions, marketplaceOptions, tabCounts,
@@ -255,6 +294,17 @@ export function PedidosClient({
             {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
+
+        <button
+          onClick={() => exportCsv(orders, period)}
+          disabled={orders.length === 0}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium transition-all disabled:opacity-40"
+          style={{ background: 'rgba(16,212,138,0.08)', border: '1px solid rgba(16,212,138,0.2)', color: 'var(--emerald)' }}
+          title="Exportar página atual como CSV"
+        >
+          <Download className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">CSV</span>
+        </button>
       </div>
 
       {/* ── Stats da página ── */}
@@ -333,7 +383,7 @@ export function PedidosClient({
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Pedido', 'Cliente', 'Estado', 'Canal', 'Status', 'Total', 'Data', ''].map(h => (
+                  {['Pedido', 'Cliente', 'Estado', 'Canal', 'Status', 'Total', 'Frete', 'Comissão', 'Data', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--muted-foreground)' }}>
                       {h}
                     </th>
@@ -372,6 +422,12 @@ export function PedidosClient({
                       </td>
                       <td className="px-4 py-3 text-[13px] font-bold font-mono" style={{ color: '#E8EDF5' }}>
                         {fmt(order.total_amount)}
+                      </td>
+                      <td className="px-4 py-3 text-[12px] font-mono" style={{ color: 'var(--muted-foreground)' }}>
+                        {order.shipping_cost ? fmt(order.shipping_cost) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-[12px] font-mono" style={{ color: '#F87171' }}>
+                        −{fmt(calcCommission(order.marketplace, order.total_amount))}
                       </td>
                       <td className="px-4 py-3 text-[12px]" style={{ color: 'var(--muted-foreground)' }}>
                         {fmtDate(order.order_date)}

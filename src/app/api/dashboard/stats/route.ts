@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
   let ordersQuery = svc
     .schema('marketplace')
     .from('orders')
-    .select('total_amount, marketplace, status, order_date, customer_name, shipping_cost, discount_total')
+    .select('total_amount, marketplace, status, order_date, customer_name, customer_state, shipping_cost, discount_total, order_number')
     .eq('tenant_id', tenantId)
     .gte('order_date', startIso)
     .order('order_date', { ascending: true })
@@ -297,6 +297,20 @@ export async function GET(request: NextRequest) {
       .single(),
   ])
 
+  // ── Recent orders (last 8) ────────────────────────────────────────────────
+  const recentOrders = [...safeOrders]
+    .sort((a, b) => new Date(b.order_date as string).getTime() - new Date(a.order_date as string).getTime())
+    .slice(0, 8)
+    .map(o => ({
+      orderNumber: (o as any).order_number || null,
+      marketplace: o.marketplace,
+      customerName: o.customer_name,
+      customerState: (o as any).customer_state,
+      totalAmount: Number(o.total_amount || 0),
+      status: o.status,
+      orderDate: o.order_date,
+    }))
+
   return NextResponse.json({
     kpis: {
       totalRevenue,
@@ -331,5 +345,6 @@ export async function GET(request: NextRequest) {
       lowStock: safeProducts.filter(p => Number(p.stock_total || 0) < 5).length,
       withCost: productsWithCost.length,
     },
+    recentOrders,
   })
 }
