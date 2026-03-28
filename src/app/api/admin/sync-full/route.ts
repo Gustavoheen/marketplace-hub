@@ -5,11 +5,22 @@ import { getUserWithTenant } from '@/lib/db/queries/tenants'
 import { getConnection, upsertConnection } from '@/lib/db/queries/connections'
 import { cookies } from 'next/headers'
 import {
-  blingGetTodosProdutos, blingGetTodosPedidos, blingRefreshToken,
+  blingGetTodosProdutos, blingGetTodosPedidos, blingGetPedidoDetalhe, blingRefreshToken,
   buildLojaMarketplaceMap, detectMarketplaceByNumero, normalizarSituacao,
 } from '@/lib/integrations/bling'
 import { bulkUpsertProducts } from '@/lib/db/queries/products'
 import { extractNfFromBling, obterTracking } from '@/lib/integrations/totalexpress'
+
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
+
+function extractUF(detail: any): string | null {
+  const uf = detail?.enderecoEntrega?.uf
+    || detail?.data?.enderecoEntrega?.uf
+    || detail?.contato?.endereco?.uf
+    || detail?.data?.contato?.endereco?.uf
+    || null
+  return uf ? String(uf).toUpperCase().trim() : null
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -117,6 +128,36 @@ export async function POST(request: NextRequest) {
     }
   } catch (err: any) {
     results.trackingErro = err.message
+  }
+
+  // ── 4. Preencher customer_state dos pedidos sem estado ───────────────────
+  try {
+    const { data: ordersWithoutState } = await svc
+      .schema('marketplace').from('orders')
+      .select('id, bling_id')
+      .eq('tenant_id', tenantId!)
+      .is('customer_state', null)
+      .not('bling_id', 'is', null)
+      .limit(100)
+
+    let statesUpdated = 0
+    for (const order of ordersWithoutState || []) {
+      try {
+        const detail = await blingGetPedidoDetalhe(accessToken, order.bling_id!)
+        const uf = extractUF(detail)
+        if (uf) {
+          await svc.schema('marketplace').from('orders')
+            .update({ customer_state: uf })
+            .eq('id', order.id)
+          statesUpdated++
+        }
+        await sleep(120)
+      } catch { /* continua */ }
+    }
+    results.statesUpdated = statesUpdated
+    results.statesPending = Math.max(0, (ordersWithoutState?.length || 0) - statesUpdated)
+  } catch (err: any) {
+    results.statesErro = err.message
   }
 
   return NextResponse.json({ success: true, synced_at: new Date().toISOString(), ...results })

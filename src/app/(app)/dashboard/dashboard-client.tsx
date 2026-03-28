@@ -364,6 +364,7 @@ export function DashboardClient() {
         if (json.produtos != null) parts.push(`${json.produtos} produtos`)
         if (json.pedidos != null) parts.push(`${json.pedidos} pedidos`)
         if (json.tracking != null) parts.push(`${json.tracking} rastreios`)
+        if (json.statesUpdated != null) parts.push(`${json.statesUpdated} estados preenchidos`)
         if (json.produtosErro) parts.push(`Produtos: ${json.produtosErro}`)
         if (json.pedidosErro) parts.push(`Pedidos: ${json.pedidosErro}`)
         setSyncMsg(`✓ ${parts.join(' · ')}`)
