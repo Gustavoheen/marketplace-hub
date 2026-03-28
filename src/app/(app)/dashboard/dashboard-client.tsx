@@ -336,6 +336,7 @@ export function DashboardClient() {
   const [marketplace, setMarketplace] = useState('all')
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [syncingFull, setSyncingFull] = useState(false)
   const [savingTax, setSavingTax] = useState(false)
   const queryClient = useQueryClient()
 
@@ -348,6 +349,32 @@ export function DashboardClient() {
     })
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
     setSavingTax(false)
+  }
+
+  async function handleSyncFull() {
+    setSyncingFull(true)
+    setSyncMsg(null)
+    try {
+      const res = await fetch('/api/admin/sync-full', { method: 'POST' })
+      const json = await res.json()
+      if (json.error) {
+        setSyncMsg(`Erro: ${json.error}`)
+      } else {
+        const parts = []
+        if (json.produtos != null) parts.push(`${json.produtos} produtos`)
+        if (json.pedidos != null) parts.push(`${json.pedidos} pedidos`)
+        if (json.tracking != null) parts.push(`${json.tracking} rastreios`)
+        if (json.produtosErro) parts.push(`Produtos: ${json.produtosErro}`)
+        if (json.pedidosErro) parts.push(`Pedidos: ${json.pedidosErro}`)
+        setSyncMsg(`✓ ${parts.join(' · ')}`)
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      }
+    } catch {
+      setSyncMsg('Erro ao conectar com o servidor')
+    } finally {
+      setSyncingFull(false)
+      setTimeout(() => setSyncMsg(null), 8000)
+    }
   }
 
   async function handleSync() {
@@ -448,10 +475,25 @@ export function DashboardClient() {
         </select>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Sync Geral */}
+          <button
+            onClick={handleSyncFull}
+            disabled={syncingFull || syncing}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all hover:opacity-90"
+            style={{
+              background: syncingFull ? 'rgba(16,212,138,0.06)' : 'rgba(16,212,138,0.1)',
+              border: '1px solid rgba(16,212,138,0.3)',
+              color: 'var(--emerald)',
+            }}
+          >
+            <Database className={`h-3.5 w-3.5 ${syncingFull ? 'animate-pulse' : ''}`} />
+            <span className="hidden sm:inline">{syncingFull ? 'Sincronizando...' : 'Sync Geral'}</span>
+          </button>
+
           {/* Sync Bling */}
           <button
             onClick={handleSync}
-            disabled={syncing}
+            disabled={syncing || syncingFull}
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all hover:opacity-90"
             style={{
               background: syncing ? 'rgba(6,200,217,0.06)' : 'rgba(6,200,217,0.1)',
@@ -463,7 +505,7 @@ export function DashboardClient() {
             <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sync Bling'}</span>
           </button>
 
-          {/* Refresh */}
+          {/* Refresh tela */}
           <button
             onClick={() => refetch()}
             disabled={isFetching}

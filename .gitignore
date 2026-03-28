@@ -51,3 +51,5 @@ security-skill/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.env*.local
