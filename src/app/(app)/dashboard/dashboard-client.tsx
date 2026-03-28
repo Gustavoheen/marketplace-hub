@@ -42,6 +42,7 @@ interface DashboardStats {
   geoEnrichment: { withState: number; withoutState: number }
   pendingAlerts: number
   products: { total: number; lowStock: number; withCost: number }
+  lastSync: { bling: string | null; tracking: string | null }
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -92,6 +93,18 @@ const MARKETPLACE_LABELS: Record<string, string> = {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmtSync(iso: string | null | undefined): string {
+  if (!iso) return 'nunca'
+  const d = new Date(iso)
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
+  const isYesterday = new Date(now.getTime() - 86400000).toDateString() === d.toDateString()
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (isToday) return `hoje ${time}`
+  if (isYesterday) return `ontem ${time}`
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + time
+}
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `R$ ${(n / 1_000_000).toFixed(1)}M`
@@ -428,6 +441,22 @@ export function DashboardClient() {
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Atualizar</span>
           </button>
+        </div>
+
+        {/* Última sincronização */}
+        <div className="w-full flex items-center gap-4 text-[11px]" style={{ color: 'var(--muted-foreground)' }}>
+          <span>
+            <span style={{ color: 'var(--sidebar-border)' }}>Bling: </span>
+            <span style={{ color: data?.lastSync?.bling ? '#E8EDF5' : 'var(--sidebar-border)' }}>
+              {fmtSync(data?.lastSync?.bling)}
+            </span>
+          </span>
+          <span>
+            <span style={{ color: 'var(--sidebar-border)' }}>Total Express: </span>
+            <span style={{ color: data?.lastSync?.tracking ? '#E8EDF5' : 'var(--sidebar-border)' }}>
+              {fmtSync(data?.lastSync?.tracking)}
+            </span>
+          </span>
         </div>
 
         {/* Sync feedback */}

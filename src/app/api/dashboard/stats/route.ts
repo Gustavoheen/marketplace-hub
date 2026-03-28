@@ -279,6 +279,24 @@ export async function GET(request: NextRequest) {
   const totalWithState = (stateRows || []).length
   const totalWithoutState = totalOrders - totalWithState
 
+  // ── Última sincronização ────────────────────────────────────────────────────
+  const [{ data: lastBlingRow }, { data: lastTrackingRow }] = await Promise.all([
+    svc.schema('marketplace').from('orders')
+      .select('synced_at')
+      .eq('tenant_id', tenantId)
+      .not('synced_at', 'is', null)
+      .order('synced_at', { ascending: false })
+      .limit(1)
+      .single(),
+    svc.schema('marketplace').from('orders')
+      .select('tracking_updated_at')
+      .eq('tenant_id', tenantId)
+      .not('tracking_updated_at', 'is', null)
+      .order('tracking_updated_at', { ascending: false })
+      .limit(1)
+      .single(),
+  ])
+
   return NextResponse.json({
     kpis: {
       totalRevenue,
@@ -304,6 +322,10 @@ export async function GET(request: NextRequest) {
     geoBreakdown,
     geoEnrichment: { withState: totalWithState, withoutState: totalWithoutState },
     pendingAlerts: (alerts || []).length,
+    lastSync: {
+      bling:    lastBlingRow?.synced_at ?? null,
+      tracking: lastTrackingRow?.tracking_updated_at ?? null,
+    },
     products: {
       total: safeProducts.length,
       lowStock: safeProducts.filter(p => Number(p.stock_total || 0) < 5).length,
