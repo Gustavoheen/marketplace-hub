@@ -94,18 +94,18 @@ export async function POST(request: NextRequest) {
 
     if (events?.length) {
       for (const ev of events) {
-        if (!ev.nf && !ev.pedido) continue
+        if (!ev.notaFiscal && !ev.pedido) continue
         const { data: matched } = await svc.schema('marketplace').from('orders')
           .select('id')
           .eq('tenant_id', tenantId!)
-          .or(`nf_number.eq.${ev.nf},order_number.eq.${ev.pedido}`)
+          .or(`nf_number.eq.${ev.notaFiscal},order_number.eq.${ev.pedido}`)
           .limit(1)
           .single()
         if (matched) {
           await svc.schema('marketplace').from('orders')
             .update({
-              tracking_code: ev.codigo || null,
-              tracking_status: ev.situacao || null,
+              tracking_code: ev.awb || null,
+              tracking_status: ev.descStatus || null,
               tracking_updated_at: new Date().toISOString(),
             })
             .eq('id', matched.id)
