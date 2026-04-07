@@ -120,31 +120,6 @@ export function normalizarProduto(raw: unknown): BlingProduct {
   const d = (raw as any)?.data || raw as any
   if (!d || typeof d !== 'object') return raw as BlingProduct
 
-  const extrairUrl = (i: unknown): string | null => {
-    if (!i) return null
-    if (typeof i === 'string') return i
-    const obj = i as Record<string, unknown>
-    return (obj.link || obj.url || obj.linkMiniatura || obj.linkThumbnail) as string | null
-  }
-
-  const urlsSet = new Set<string>()
-  const imagens: string[] = []
-  const addImg = (i: unknown) => {
-    const u = extrairUrl(i)
-    if (u && !urlsSet.has(u)) { urlsSet.add(u); imagens.push(u) }
-  }
-
-  const midiaImgs = d.midia?.imagens
-  if (midiaImgs && typeof midiaImgs === 'object' && !Array.isArray(midiaImgs)) {
-    if (Array.isArray(midiaImgs.externas)) midiaImgs.externas.forEach(addImg)
-    if (Array.isArray(midiaImgs.internas)) midiaImgs.internas.forEach(addImg)
-    if (Array.isArray(midiaImgs.imagensURL)) midiaImgs.imagensURL.forEach(addImg)
-  } else if (Array.isArray(midiaImgs)) {
-    midiaImgs.forEach(addImg)
-  }
-  if (Array.isArray(d.imagens)) d.imagens.forEach(addImg)
-  if (d.imagemURL) addImg(d.imagemURL)
-
   const dim = d.dimensoes || {}
   const trib = d.tributacao || {}
 
@@ -162,8 +137,8 @@ export function normalizarProduto(raw: unknown): BlingProduct {
     gtin: d.gtin || '',
     descricaoCurta: d.descricaoCurta || '',
     descricaoComplementar: d.descricaoComplementar || '',
-    imagemURL: imagens[0] || null,
-    imagens,
+    imagemURL: null,
+    imagens: [],
     largura: dim.largura ?? d.largura ?? null,
     altura: dim.altura ?? d.altura ?? null,
     profundidade: dim.profundidade ?? d.profundidade ?? null,

@@ -11,7 +11,7 @@ import {
 import {
   TrendingUp, ShoppingCart, Package,
   Percent, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  RefreshCw, Filter, Database, Wrench, MapPin, ExternalLink,
+  RefreshCw, Filter, Database, Wrench, ExternalLink,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -334,7 +334,6 @@ function EmptyChart({ message }: { message: string }) {
 export function DashboardClient() {
   const [period, setPeriod] = useState('30d')
   const [marketplace, setMarketplace] = useState('all')
-  const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [syncingFull, setSyncingFull] = useState(false)
   const [savingTax, setSavingTax] = useState(false)
@@ -364,7 +363,10 @@ export function DashboardClient() {
         if (json.produtos != null) parts.push(`${json.produtos} produtos`)
         if (json.pedidos != null) parts.push(`${json.pedidos} pedidos`)
         if (json.tracking != null) parts.push(`${json.tracking} rastreios`)
-        if (json.statesUpdated != null) parts.push(`${json.statesUpdated} estados preenchidos`)
+        if (json.statesFixed > 0) parts.push(`${json.statesFixed} estados preenchidos`)
+        if (json.freightFixed > 0) parts.push(`${json.freightFixed} fretes corrigidos`)
+        if ((json.detailPending ?? 0) > 0) parts.push(`⚠ ${json.detailPending} pendentes — rode novamente`)
+        if (json.statusFixed > 0) parts.push(`${json.statusFixed} status corrigidos`)
         if (json.produtosErro) parts.push(`Produtos: ${json.produtosErro}`)
         if (json.pedidosErro) parts.push(`Pedidos: ${json.pedidosErro}`)
         setSyncMsg(`✓ ${parts.join(' · ')}`)
@@ -378,27 +380,7 @@ export function DashboardClient() {
     }
   }
 
-  async function handleSync() {
-    setSyncing(true)
-    setSyncMsg(null)
-    try {
-      const res = await fetch('/api/integracoes/bling/sync-all', { method: 'POST' })
-      const json = await res.json()
-      if (json.error) {
-        setSyncMsg(`Erro: ${json.error}`)
-      } else {
-        setSyncMsg(`✓ ${json.produtos} produtos · ${json.pedidos} pedidos sincronizados`)
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
-      }
-    } catch {
-      setSyncMsg('Erro ao conectar com o servidor')
-    } finally {
-      setSyncing(false)
-      setTimeout(() => setSyncMsg(null), 6000)
-    }
-  }
-
-  const { data, isLoading, refetch, isFetching } = useQuery<DashboardStats>({
+const { data, isLoading, refetch, isFetching } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats', period, marketplace],
     queryFn: async () => {
       const res = await fetch(`/api/dashboard/stats?period=${period}&marketplace=${marketplace}`)
@@ -479,7 +461,7 @@ export function DashboardClient() {
           {/* Sync Geral */}
           <button
             onClick={handleSyncFull}
-            disabled={syncingFull || syncing}
+            disabled={syncingFull}
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all hover:opacity-90"
             style={{
               background: syncingFull ? 'rgba(16,212,138,0.06)' : 'rgba(16,212,138,0.1)',
@@ -489,21 +471,6 @@ export function DashboardClient() {
           >
             <Database className={`h-3.5 w-3.5 ${syncingFull ? 'animate-pulse' : ''}`} />
             <span className="hidden sm:inline">{syncingFull ? 'Sincronizando...' : 'Sync Geral'}</span>
-          </button>
-
-          {/* Sync Bling */}
-          <button
-            onClick={handleSync}
-            disabled={syncing || syncingFull}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-all hover:opacity-90"
-            style={{
-              background: syncing ? 'rgba(6,200,217,0.06)' : 'rgba(6,200,217,0.1)',
-              border: '1px solid rgba(6,200,217,0.25)',
-              color: 'var(--cyan)',
-            }}
-          >
-            <Database className={`h-3.5 w-3.5 ${syncing ? 'animate-pulse' : ''}`} />
-            <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sync Bling'}</span>
           </button>
 
           {/* Refresh tela */}
@@ -913,55 +880,8 @@ export function DashboardClient() {
         </Section>
       </div>
 
-      {/* ── Top Regiões + Pedidos Recentes ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
-
-        {/* Top Regiões */}
-        <Section
-          title="Top Regiões"
-          action={
-            <a href="/regioes" className="flex items-center gap-1 text-[11px] transition-opacity hover:opacity-80"
-              style={{ color: 'var(--cyan)' }}>
-              <MapPin className="h-3 w-3" />
-              Ver tudo
-            </a>
-          }
-        >
-          {isLoading ? (
-            <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="shimmer h-7 rounded" />)}</div>
-          ) : !data?.geoBreakdown?.length ? (
-            <div className="flex h-24 items-center justify-center">
-              <p className="text-[12px]" style={{ color: 'var(--muted-foreground)' }}>Nenhum estado mapeado ainda.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {data.geoBreakdown.slice(0, 8).map((row) => {
-                const maxOrd = data.geoBreakdown[0].orders
-                const pct = (row.orders / maxOrd) * 100
-                const revTotal = data.geoBreakdown.reduce((s, r) => s + r.revenue, 0)
-                const revPct = revTotal > 0 ? ((row.revenue / revTotal) * 100).toFixed(1) : '0'
-                return (
-                  <div key={row.state} className="flex items-center gap-3">
-                    <span className="text-[11px] font-bold w-7 text-center rounded py-0.5"
-                      style={{ background: 'rgba(6,200,217,0.1)', color: 'var(--cyan)', fontFamily: 'var(--font-jetbrains-mono)' }}>
-                      {row.state}
-                    </span>
-                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                      <div className="h-full rounded-full"
-                        style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--cyan), var(--emerald))' }} />
-                    </div>
-                    <span className="text-[11px] font-semibold w-7 text-right shrink-0" style={{ color: '#E8EDF5' }}>
-                      {row.orders}
-                    </span>
-                    <span className="text-[11px] w-12 text-right shrink-0" style={{ color: 'var(--muted-foreground)' }}>
-                      {revPct}%
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </Section>
+      {/* ── Pedidos Recentes ── */}
+      <div className="grid grid-cols-1 gap-4 md:gap-5">
 
         {/* Pedidos Recentes */}
         <Section

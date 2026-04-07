@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { blingGetTodosPedidos, blingRefreshToken, normalizarSituacao, buildLojaMarketplaceMap, detectMarketplaceByNumero } from '@/lib/integrations/bling'
+import { blingGetTodosPedidos, blingGetPedidoDetalhe, blingRefreshToken, normalizarSituacao, buildLojaMarketplaceMap, detectMarketplaceByNumero } from '@/lib/integrations/bling'
 import { extractNfFromBling } from '@/lib/integrations/totalexpress'
 import { upsertConnection } from '@/lib/db/queries/connections'
 
-// Chamado pelo Vercel Cron a cada 2 horas
+export const maxDuration = 300
+
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
+
+function extractFromDetail(detail: any) {
+  const d = detail?.data ?? detail ?? {}
+  const uf = d?.transporte?.etiqueta?.uf
+    || d?.enderecoEntrega?.uf
+    || d?.contato?.endereco?.uf
+    || null
+  const shipping_cost = Number(d?.transporte?.frete || d?.totaisMarketplace?.custoFrete || 0) || null
+  const marketplace_fee = Number(d?.totaisMarketplace?.taxaMarketplace || 0) || null
+  return {
+    customer_state: uf ? String(uf).toUpperCase().trim() : null,
+    shipping_cost,
+    marketplace_fee,
+  }
+}
+
+// Chamado pelo Vercel Cron a cada hora
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -57,14 +76,34 @@ export async function GET(request: NextRequest) {
       ])
       if (!pedidos.length) continue
 
-      // Upsert orders em batches de 50 — usando schema existente
+      // Upsert orders em batches de 50 — lista básica
       for (let i = 0; i < pedidos.length; i += 50) {
         const batch = pedidos.slice(i, i + 50).map((p: any) => mapBlingOrderRow(tenantId, p, lojaMap))
+        await svc.schema('marketplace').from('orders').upsert(batch, { onConflict: 'tenant_id,bling_id' })
+      }
 
-        await svc
-          .schema('marketplace')
-          .from('orders')
-          .upsert(batch, { onConflict: 'tenant_id,bling_id' })
+      // Busca detalhe de cada pedido para enriquecer estado + frete
+      // (o endpoint de lista não retorna enderecoEntrega nem totaisMarketplace)
+      const PARALLEL = 3
+      for (let i = 0; i < pedidos.length; i += PARALLEL) {
+        const slice = pedidos.slice(i, i + PARALLEL)
+        await Promise.allSettled(slice.map(async (p: any) => {
+          try {
+            const detail = await blingGetPedidoDetalhe(accessToken, p.id)
+            const { customer_state, shipping_cost, marketplace_fee } = extractFromDetail(detail)
+            const updates: Record<string, unknown> = {}
+            if (customer_state) updates.customer_state = customer_state
+            if (shipping_cost) updates.shipping_cost = shipping_cost
+            if (marketplace_fee) updates.marketplace_fee = marketplace_fee
+            if (Object.keys(updates).length > 0) {
+              await svc.schema('marketplace').from('orders')
+                .update(updates)
+                .eq('tenant_id', tenantId)
+                .eq('bling_id', String(p.id))
+            }
+          } catch { /* ignora erros individuais */ }
+        }))
+        await sleep(600)
       }
 
       totalOrders += pedidos.length
